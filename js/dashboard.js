@@ -240,4 +240,3 @@ const Dashboard = {
 };
 
 export default Dashboard;
-window.Dashboard = Dashboard;

@@ -1,5 +1,5 @@
 // ============================================================
-//  app.js — App controller with Firebase Auth
+//  app.js — entry point, imports all pages
 // ============================================================
 
 import {
@@ -9,11 +9,13 @@ import {
   onAuthStateChanged
 } from './firebase.js';
 
+import Dashboard from './dashboard.js';
+import Purchases from './purchases.js';
+
 export const STORES  = ['Chevrolet','Chrysler','Ford BHC','Ford Kingman','Honda','Nissan','Toyota'];
 export const SOURCES = ['ICO','Enterprise','VCG','Bidacar','ACV','Openlane','Manheim','Transfer'];
 export const BUYERS  = ['Gonzalez','Manchester'];
 
-// ---- Toast --------------------------------------------------
 export const Toast = {
   t: null,
   show(msg, type = '') {
@@ -26,19 +28,13 @@ export const Toast = {
   }
 };
 
-// ---- App ----------------------------------------------------
 const App = {
   user: null,
 
   init() {
     onAuthStateChanged(auth, user => {
-      if (user) {
-        this.user = user;
-        this.showApp(user);
-      } else {
-        this.user = null;
-        this.showLogin();
-      }
+      if (user) { this.user = user; this.showApp(user); }
+      else      { this.user = null; this.showLogin();   }
     });
 
     document.getElementById('login-btn')
@@ -70,7 +66,7 @@ const App = {
 
     try {
       await signInWithEmailAndPassword(auth, email, pw);
-    } catch (e) {
+    } catch(e) {
       err.textContent = this.authError(e.code);
       err.classList.remove('hidden');
       btn.textContent = 'Sign in';

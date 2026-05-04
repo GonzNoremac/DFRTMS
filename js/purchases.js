@@ -1,8 +1,5 @@
 // ============================================================
-//  purchases.js — Purchases page with Firestore persistence
-//
-//  Firestore path: purchases/{autoId}
-//  Real-time listener via onSnapshot
+//  purchases.js
 // ============================================================
 
 import {
@@ -12,7 +9,7 @@ import {
 } from './firebase.js';
 import { STORES, SOURCES, BUYERS, Toast } from './app.js';
 
-let unsubscribe = null; // hold Firestore listener so we can detach on navigate away
+let unsubscribe = null;
 
 const Purchases = {
 
@@ -27,7 +24,6 @@ const Purchases = {
 
   // ---- Render ------------------------------------------------
   render(container) {
-    // Detach any previous listener
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
 
     container.innerHTML = `
@@ -52,16 +48,16 @@ const Purchases = {
           <div class="qa-group"><label>VIN</label>
             <input type="text" id="qa-vin" placeholder="17-char VIN" maxlength="17" autocomplete="off" style="text-transform:uppercase"></div>
           <div class="qa-group"><label>Source</label>
-            <select id="qa-source">${SOURCES.map(s=>`<option>${s}</option>`).join('')}</select></div>
+            <select id="qa-source">${SOURCES.map(s => `<option>${s}</option>`).join('')}</select></div>
           <div class="qa-group"><label>Store</label>
             <select id="qa-store">
               <option value="">— Store —</option>
-              ${STORES.map(s=>`<option>${s}</option>`).join('')}
+              ${STORES.map(s => `<option>${s}</option>`).join('')}
             </select></div>
           <div class="qa-group"><label>Buyer</label>
             <select id="qa-buyer">
               <option value="">— Buyer —</option>
-              ${BUYERS.map(b=>`<option>${b}</option>`).join('')}
+              ${BUYERS.map(b => `<option>${b}</option>`).join('')}
             </select></div>
           <button class="qa-submit" id="qa-submit">Add</button>
         </div>
@@ -71,21 +67,20 @@ const Purchases = {
         <input type="text" id="p-search" placeholder="Search stock #, VIN, make, model…" value="${this.searchQ}">
         <select id="p-store">
           <option value="">All stores</option>
-          ${STORES.map(s=>`<option value="${s}" ${this.filterStore===s?'selected':''}>${s}</option>`).join('')}
+          ${STORES.map(s => `<option value="${s}" ${this.filterStore === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
         <select id="p-source">
           <option value="">All sources</option>
-          ${SOURCES.map(s=>`<option value="${s}" ${this.filterSource===s?'selected':''}>${s}</option>`).join('')}
+          ${SOURCES.map(s => `<option value="${s}" ${this.filterSource === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
         <select id="p-buyer">
           <option value="">All buyers</option>
-          ${BUYERS.map(b=>`<option value="${b}" ${this.filterBuyer===b?'selected':''}>${b}</option>`).join('')}
+          ${BUYERS.map(b => `<option value="${b}" ${this.filterBuyer === b ? 'selected' : ''}>${b}</option>`).join('')}
         </select>
         <span class="record-count" id="p-count"></span>
         <button class="btn-import" id="btn-import">⬆ Import CSV</button>
       </div>
 
-      <!-- Import panel (hidden until triggered) -->
       <div id="import-panel" class="import-panel hidden"></div>
 
       <div class="p-card">
@@ -116,7 +111,7 @@ const Purchases = {
     this.subscribeFirestore();
   },
 
-  // ---- Firestore real-time listener --------------------------
+  // ---- Firestore listener ------------------------------------
   subscribeFirestore() {
     const q = query(collection(db, 'purchases'), orderBy('date', 'desc'));
     unsubscribe = onSnapshot(q,
@@ -131,11 +126,11 @@ const Purchases = {
     );
   },
 
-  // ---- Quick add to Firestore --------------------------------
+  // ---- Quick add ---------------------------------------------
   async submitQuickAdd() {
-    const stock  = document.getElementById('qa-stock').value.trim();
-    const store  = document.getElementById('qa-store').value;
-    const buyer  = document.getElementById('qa-buyer').value;
+    const stock = document.getElementById('qa-stock').value.trim();
+    const store = document.getElementById('qa-store').value;
+    const buyer = document.getElementById('qa-buyer').value;
 
     if (!stock) { Toast.show('Stock # is required', 'error'); document.getElementById('qa-stock').focus(); return; }
     if (!store) { Toast.show('Select a store', 'error');      document.getElementById('qa-store').focus(); return; }
@@ -145,25 +140,22 @@ const Purchases = {
     btn.textContent = '…';
     btn.disabled = true;
 
-    const rec = {
-      date:   document.getElementById('qa-date').value,
-      stock,
-      year:   parseInt(document.getElementById('qa-year').value) || '',
-      make:   document.getElementById('qa-make').value.trim(),
-      model:  document.getElementById('qa-model').value.trim(),
-      vin:    document.getElementById('qa-vin').value.trim().toUpperCase(),
-      source: document.getElementById('qa-source').value,
-      store,
-      buyer,
-      notes:  '',
-      arb:    null,
-      createdAt: new Date().toISOString(),
-    };
-
     try {
-      await addDoc(collection(db, 'purchases'), rec);
+      await addDoc(collection(db, 'purchases'), {
+        date:      document.getElementById('qa-date').value,
+        stock,
+        year:      parseInt(document.getElementById('qa-year').value) || '',
+        make:      document.getElementById('qa-make').value.trim(),
+        model:     document.getElementById('qa-model').value.trim(),
+        vin:       document.getElementById('qa-vin').value.trim().toUpperCase(),
+        source:    document.getElementById('qa-source').value,
+        store,
+        buyer,
+        notes:     '',
+        arb:       null,
+        createdAt: new Date().toISOString(),
+      });
       Toast.show(`Added ${stock}`, 'success');
-      // Clear vehicle fields, keep date/source/store/buyer for batch entry
       ['qa-stock','qa-year','qa-make','qa-model','qa-vin'].forEach(id => {
         document.getElementById(id).value = '';
       });
@@ -172,12 +164,11 @@ const Purchases = {
       console.error(e);
       Toast.show('Failed to save — check connection', 'error');
     }
-
     btn.textContent = 'Add';
     btn.disabled = false;
   },
 
-  // ---- Update / delete ---------------------------------------
+  // ---- Save / delete -----------------------------------------
   async saveRecord(id, changes) {
     try {
       await updateDoc(doc(db, 'purchases', id), changes);
@@ -189,7 +180,7 @@ const Purchases = {
   },
 
   async deleteRecord(id) {
-    if (!confirm('Delete this purchase record? This cannot be undone.')) return;
+    if (!confirm('Delete this purchase? This cannot be undone.')) return;
     try {
       await deleteDoc(doc(db, 'purchases', id));
       this.expandedId = null;
@@ -208,7 +199,7 @@ const Purchases = {
         if (e.key === 'Enter') {
           e.preventDefault();
           if (i === qaInputs.length - 1) this.submitQuickAdd();
-          else qaInputs[i+1].focus();
+          else qaInputs[i + 1].focus();
         }
       });
     });
@@ -219,10 +210,10 @@ const Purchases = {
   },
 
   bindFilters() {
-    document.getElementById('p-search').addEventListener('input', e => { this.searchQ = e.target.value; this.renderRows(); });
-    document.getElementById('p-store').addEventListener('change', e => { this.filterStore = e.target.value; this.renderRows(); });
+    document.getElementById('p-search').addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
+    document.getElementById('p-store').addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
     document.getElementById('p-source').addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
-    document.getElementById('p-buyer').addEventListener('change', e => { this.filterBuyer = e.target.value; this.renderRows(); });
+    document.getElementById('p-buyer').addEventListener('change',  e => { this.filterBuyer  = e.target.value; this.renderRows(); });
   },
 
   bindTableSort() {
@@ -240,18 +231,18 @@ const Purchases = {
     let data = [...this.records];
     const q = this.searchQ.trim().toLowerCase();
     if (q) data = data.filter(r =>
-      (r.stock||'').toLowerCase().includes(q) ||
-      (r.vin||'').toLowerCase().includes(q) ||
-      (r.make||'').toLowerCase().includes(q) ||
-      (r.model||'').toLowerCase().includes(q)
+      (r.stock  || '').toLowerCase().includes(q) ||
+      (r.vin    || '').toLowerCase().includes(q) ||
+      (r.make   || '').toLowerCase().includes(q) ||
+      (r.model  || '').toLowerCase().includes(q)
     );
     if (this.filterStore)  data = data.filter(r => r.store  === this.filterStore);
     if (this.filterSource) data = data.filter(r => r.source === this.filterSource);
     if (this.filterBuyer)  data = data.filter(r => r.buyer  === this.filterBuyer);
     const col = this.sortCol;
-    data.sort((a,b) => {
-      let av = a[col]??'', bv = b[col]??'';
-      if (typeof av === 'number') return (av-bv) * this.sortDir;
+    data.sort((a, b) => {
+      let av = a[col] ?? '', bv = b[col] ?? '';
+      if (typeof av === 'number') return (av - bv) * this.sortDir;
       return String(av).localeCompare(String(bv)) * this.sortDir;
     });
     return data;
@@ -292,18 +283,18 @@ const Purchases = {
   rowHTML(r) {
     const isExpanded = this.expandedId === r.id;
     const hasArb     = r.arb !== null && r.arb !== undefined;
-    const srcClass   = 'src-' + (r.source||'').replace(/\s/g,'');
-    return `<tr class="p-row${isExpanded?' expanded':''}${hasArb?' has-arb':''}" data-id="${r.id}">
+    const srcClass   = 'src-' + (r.source || '').replace(/\s/g, '');
+    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
-      <td>${r.date||'—'}</td>
-      <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock||''}</td>
-      <td style="color:var(--text-2)">${r.year||'—'}</td>
-      <td>${r.make||'—'}</td>
-      <td>${r.model||'—'}</td>
-      <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.vin||'—'}</td>
-      <td><span class="src-badge ${srcClass}">${r.source||''}</span></td>
-      <td style="color:var(--text-2);font-size:12px">${r.store||'—'}</td>
-      <td style="font-size:12px;color:var(--text-2)">${r.buyer||'—'}</td>
+      <td>${r.date || '—'}</td>
+      <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || ''}</td>
+      <td style="color:var(--text-2)">${r.year || '—'}</td>
+      <td>${r.make || '—'}</td>
+      <td>${r.model || '—'}</td>
+      <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.vin || '—'}</td>
+      <td><span class="src-badge ${srcClass}">${r.source || ''}</span></td>
+      <td style="color:var(--text-2);font-size:12px">${r.store || '—'}</td>
+      <td style="font-size:12px;color:var(--text-2)">${r.buyer || '—'}</td>
     </tr>`;
   },
 
@@ -317,46 +308,45 @@ const Purchases = {
     return `<tr class="detail-row" data-detail-id="${r.id}">
       <td colspan="10">
         <div class="detail-panel">
-
           <div>
             <div class="detail-section-title">Vehicle details</div>
             <div class="detail-fields three" style="margin-bottom:10px">
               <div class="detail-field"><label>Date</label>
-                <input type="date" data-field="date" value="${r.date||''}"></div>
+                <input type="date" data-field="date" value="${r.date || ''}"></div>
               <div class="detail-field"><label>Stock #</label>
-                <input type="text" data-field="stock" value="${r.stock||''}"></div>
+                <input type="text" data-field="stock" value="${r.stock || ''}"></div>
               <div class="detail-field"><label>Year</label>
-                <input type="number" data-field="year" value="${r.year||''}" style="-moz-appearance:textfield"></div>
+                <input type="number" data-field="year" value="${r.year || ''}" style="-moz-appearance:textfield"></div>
             </div>
             <div class="detail-fields" style="margin-bottom:10px">
               <div class="detail-field"><label>Make</label>
-                <input type="text" data-field="make" value="${r.make||''}"></div>
+                <input type="text" data-field="make" value="${r.make || ''}"></div>
               <div class="detail-field"><label>Model</label>
-                <input type="text" data-field="model" value="${r.model||''}"></div>
+                <input type="text" data-field="model" value="${r.model || ''}"></div>
             </div>
             <div class="detail-fields one" style="margin-bottom:10px">
               <div class="detail-field"><label>VIN</label>
-                <input type="text" data-field="vin" value="${r.vin||''}" maxlength="17"
+                <input type="text" data-field="vin" value="${r.vin || ''}" maxlength="17"
                   style="text-transform:uppercase;font-family:var(--font-mono)"></div>
             </div>
             <div class="detail-fields three" style="margin-bottom:10px">
               <div class="detail-field"><label>Source</label>
                 <select data-field="source">
-                  ${SOURCES.map(s=>`<option ${r.source===s?'selected':''}>${s}</option>`).join('')}
+                  ${SOURCES.map(s => `<option ${r.source === s ? 'selected' : ''}>${s}</option>`).join('')}
                 </select></div>
               <div class="detail-field"><label>Store</label>
                 <select data-field="store">
-                  ${STORES.map(s=>`<option ${r.store===s?'selected':''}>${s}</option>`).join('')}
+                  ${STORES.map(s => `<option ${r.store === s ? 'selected' : ''}>${s}</option>`).join('')}
                 </select></div>
               <div class="detail-field"><label>Buyer</label>
                 <select data-field="buyer">
                   <option value="">— Buyer —</option>
-                  ${BUYERS.map(b=>`<option ${r.buyer===b?'selected':''}>${b}</option>`).join('')}
+                  ${BUYERS.map(b => `<option ${r.buyer === b ? 'selected' : ''}>${b}</option>`).join('')}
                 </select></div>
             </div>
             <div class="detail-fields one">
               <div class="detail-field"><label>Notes</label>
-                <textarea data-field="notes" placeholder="Any notes about this unit…">${r.notes||''}</textarea>
+                <textarea data-field="notes" placeholder="Any notes about this unit…">${r.notes || ''}</textarea>
               </div>
             </div>
           </div>
@@ -365,59 +355,55 @@ const Purchases = {
             <div class="detail-section-title">Arbitration</div>
             <div class="arb-toggle">
               <label class="toggle-switch">
-                <input type="checkbox" id="arb-toggle-${r.id}" ${hasArb?'checked':''}>
+                <input type="checkbox" id="arb-toggle-${r.id}" ${hasArb ? 'checked' : ''}>
                 <span class="toggle-track"></span>
               </label>
-              <span class="arb-toggle-label" id="arb-label-${r.id}">${hasArb?'Case open':'No arbitration case'}</span>
+              <span class="arb-toggle-label" id="arb-label-${r.id}">${hasArb ? 'Case open' : 'No arbitration case'}</span>
               ${hasArb && arb.status ? `<span class="arb-status-badge arb-${arb.status}">${arb.status}</span>` : ''}
             </div>
-            <div class="arb-fields${hasArb?' visible':''}" id="arb-fields-${r.id}">
+            <div class="arb-fields${hasArb ? ' visible' : ''}" id="arb-fields-${r.id}">
               <div class="detail-fields" style="margin-bottom:10px">
                 <div class="detail-field"><label>Issue</label>
-                  <input type="text" data-arb-field="issue" value="${arb.issue||''}"
-                    placeholder="e.g. Undisclosed engine misfire"></div>
+                  <input type="text" data-arb-field="issue" value="${arb.issue || ''}" placeholder="e.g. Undisclosed engine misfire"></div>
                 <div class="detail-field"><label>Amount requested ($)</label>
-                  <input type="number" data-arb-field="amount" value="${arb.amount||''}"
-                    placeholder="0" style="-moz-appearance:textfield"></div>
+                  <input type="number" data-arb-field="amount" value="${arb.amount || ''}" placeholder="0" style="-moz-appearance:textfield"></div>
               </div>
               <div class="detail-fields" style="margin-bottom:10px">
                 <div class="detail-field"><label>Date filed</label>
-                  <input type="date" data-arb-field="dateFiled" value="${arb.dateFiled||today()}"></div>
+                  <input type="date" data-arb-field="dateFiled" value="${arb.dateFiled || today()}"></div>
                 <div class="detail-field"><label>Status</label>
                   <select data-arb-field="status">
-                    ${['Open','Won','Lost','Closed'].map(s=>
-                      `<option ${(arb.status||'Open')===s?'selected':''}>${s}</option>`
+                    ${['Open','Won','Lost','Closed'].map(s =>
+                      `<option ${(arb.status || 'Open') === s ? 'selected' : ''}>${s}</option>`
                     ).join('')}
                   </select></div>
               </div>
               <div class="detail-fields one">
                 <div class="detail-field"><label>Resolution notes</label>
-                  <textarea data-arb-field="resolution"
-                    placeholder="Outcome, credits applied, etc.">${arb.resolution||''}</textarea>
+                  <textarea data-arb-field="resolution" placeholder="Outcome, credits applied, etc.">${arb.resolution || ''}</textarea>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="detail-actions">
-            <button class="btn-save"  data-save-id="${r.id}">Save changes</button>
-            <button class="btn-ghost" data-close-id="${r.id}">Close</button>
+            <button class="btn-save"   data-save-id="${r.id}">Save changes</button>
+            <button class="btn-ghost"  data-close-id="${r.id}">Close</button>
             <button class="btn-delete" data-delete-id="${r.id}">Delete record</button>
           </div>
-
         </div>
       </td>
     </tr>`;
   },
 
-  // ---- Toggle & bind -----------------------------------------
+  // ---- Toggle & bind detail ----------------------------------
   toggleRow(id) {
     this.expandedId = this.expandedId === id ? null : id;
     this.renderRows();
     if (this.expandedId) {
       setTimeout(() => {
         document.querySelector(`tr[data-id="${id}"]`)
-          ?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 50);
     }
   },
@@ -425,8 +411,6 @@ const Purchases = {
   bindDetailPanel(id) {
     const rec = this.records.find(r => r.id === id);
     if (!rec) return;
-
-    // Collect pending changes locally; write on Save
     const pending = {};
 
     document.querySelectorAll(`tr[data-detail-id="${id}"] [data-field]`).forEach(el => {
@@ -438,14 +422,13 @@ const Purchases = {
       });
     });
 
-    // Arb toggle
     const toggle    = document.getElementById(`arb-toggle-${id}`);
     const arbFields = document.getElementById(`arb-fields-${id}`);
     const arbLabel  = document.getElementById(`arb-label-${id}`);
     if (toggle) {
       toggle.addEventListener('change', e => {
         if (e.target.checked) {
-          pending.arb = { issue:'', amount:'', dateFiled:today(), status:'Open', resolution:'' };
+          pending.arb = { issue: '', amount: '', dateFiled: today(), status: 'Open', resolution: '' };
           arbFields.classList.add('visible');
           arbLabel.textContent = 'Case open';
         } else {
@@ -457,44 +440,33 @@ const Purchases = {
       });
     }
 
-    // Arb fields
     document.querySelectorAll(`tr[data-detail-id="${id}"] [data-arb-field]`).forEach(el => {
       el.addEventListener('change', e => {
-        const currentArb = pending.arb !== undefined ? pending.arb : { ...(rec.arb||{}) };
+        const currentArb = pending.arb !== undefined ? pending.arb : { ...(rec.arb || {}) };
         if (currentArb) {
           currentArb[e.target.dataset.arbField] =
             e.target.dataset.arbField === 'amount'
-              ? (parseFloat(e.target.value)||'')
+              ? (parseFloat(e.target.value) || '')
               : e.target.value;
           pending.arb = currentArb;
         }
       });
     });
 
-    // Save
     document.querySelector(`[data-save-id="${id}"]`)?.addEventListener('click', () => {
       if (Object.keys(pending).length === 0) { Toast.show('No changes to save'); return; }
       this.saveRecord(id, pending);
     });
-
-    // Close
     document.querySelector(`[data-close-id="${id}"]`)?.addEventListener('click', () => {
       this.expandedId = null;
       this.renderRows();
     });
-
-    // Delete
     document.querySelector(`[data-delete-id="${id}"]`)?.addEventListener('click', () => {
       this.deleteRecord(id);
     });
   },
-};
 
-
-  // ============================================================
-  //  CSV IMPORT
-  // ============================================================
-
+  // ---- CSV Import --------------------------------------------
   bindImport() {
     document.getElementById('btn-import')
       .addEventListener('click', () => this.openImportPanel());
@@ -508,7 +480,6 @@ const Purchases = {
         <div class="import-title">Import purchases from CSV</div>
         <button class="import-close" id="import-close">✕</button>
       </div>
-
       <div class="import-body">
         <div class="import-buyer-row">
           <div class="import-buyer-label">Assign all imported records to buyer:</div>
@@ -517,14 +488,12 @@ const Purchases = {
             ${BUYERS.map(b => `<option>${b}</option>`).join('')}
           </select>
         </div>
-
         <div class="import-drop" id="import-drop">
           <div class="import-drop-icon">📄</div>
           <div class="import-drop-text">Drop your CSV here or <label for="import-file" class="import-file-link">browse</label></div>
-          <div class="import-drop-hint">Expected columns: Date, Stock #, Year, Make, Model, VIN, Source, Store, Comments</div>
-          <input type="file" id="import-file" accept=".csv" style="display:none">
+          <div class="import-drop-hint">Expected columns: Date · Stock # · Year · Make · Model · VIN · Source · Store · Comments</div>
+          <input type="file" id="import-file" accept=".csv,.tsv,.txt" style="display:none">
         </div>
-
         <div id="import-preview"></div>
       </div>
     `;
@@ -532,22 +501,20 @@ const Purchases = {
     document.getElementById('import-close')
       .addEventListener('click', () => this.closeImportPanel());
 
-    // File input
-    const fileInput = document.getElementById('import-file');
-    fileInput.addEventListener('change', e => {
-      if (e.target.files[0]) this.readCSV(e.target.files[0]);
-    });
+    document.getElementById('import-file')
+      .addEventListener('change', e => {
+        if (e.target.files[0]) this.readCSV(e.target.files[0]);
+      });
 
-    // Drag and drop
     const drop = document.getElementById('import-drop');
-    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+    drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('drag-over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
     drop.addEventListener('drop', e => {
       e.preventDefault();
       drop.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.name.endsWith('.csv')) this.readCSV(file);
-      else Toast.show('Please drop a .csv file', 'error');
+      if (file) this.readCSV(file);
+      else Toast.show('Could not read that file', 'error');
     });
 
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -572,14 +539,15 @@ const Purchases = {
     const lines = text.trim().split(/\r?\n/);
     if (lines.length < 2) return [];
 
-    // Normalize headers — trim whitespace, lowercase for matching
-    const headers = lines[0].split('\t').map(h => h.trim());
+    // Detect separator — tab-separated if header has tabs
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(sep).map(h => h.trim().replace(/^\uFEFF/, '')); // strip BOM
 
-    // Map CSV header → our field name
     const headerMap = {
       'date':     'date',
       'stock #':  'stock',
       'stock#':   'stock',
+      'stock':    'stock',
       'year':     'year',
       'make':     'make',
       'model':    'model',
@@ -588,36 +556,26 @@ const Purchases = {
       'store':    'store',
       'comments': 'comments',
       'comment':  'comments',
+      'notes':    'comments',
     };
 
-    // Check if tab-separated; fall back to comma
-    const sep = lines[0].includes('\t') ? '\t' : ',';
-    const hdrs = lines[0].split(sep).map(h => h.trim());
-
-    const fieldNames = hdrs.map(h => headerMap[h.toLowerCase()] || null);
+    const fieldNames = headers.map(h => headerMap[h.toLowerCase()] || null);
 
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
 
-      // Handle quoted CSV fields
-      const cols = this.splitCSVLine(line, sep);
-      const row = {};
+      const cols = sep === '\t' ? line.split('\t') : this.splitCSV(line);
+      const row  = {};
       fieldNames.forEach((field, idx) => {
         if (field) row[field] = (cols[idx] || '').trim();
       });
 
-      // Skip rows with no stock number
       if (!row.stock) continue;
 
-      // Normalize date — Excel sometimes exports as M/D/YYYY
       if (row.date) row.date = this.normalizeDate(row.date);
-
-      // Normalize VIN to uppercase
-      if (row.vin) row.vin = row.vin.toUpperCase();
-
-      // Year as number
+      if (row.vin)  row.vin  = row.vin.toUpperCase();
       if (row.year) row.year = parseInt(row.year) || '';
 
       rows.push(row);
@@ -625,13 +583,10 @@ const Purchases = {
     return rows;
   },
 
-  splitCSVLine(line, sep) {
-    if (sep === '\t') return line.split('\t');
-    // Basic CSV split respecting quoted fields
+  splitCSV(line) {
     const result = [];
     let cur = '', inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
+    for (const c of line) {
       if (c === '"') { inQuote = !inQuote; }
       else if (c === ',' && !inQuote) { result.push(cur); cur = ''; }
       else { cur += c; }
@@ -642,50 +597,37 @@ const Purchases = {
 
   normalizeDate(raw) {
     if (!raw) return '';
-    // Already YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    // M/D/YYYY or MM/DD/YYYY
     const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) {
-      return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-    }
-    // M/D/YY
+    if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
     const m2 = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
-    if (m2) {
-      const yr = parseInt(m2[3]) + 2000;
-      return `${yr}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
-    }
+    if (m2) return `${2000 + parseInt(m2[3])}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
     return raw;
   },
 
   showPreview(rows) {
     const preview = document.getElementById('import-preview');
     if (!rows.length) {
-      preview.innerHTML = `<div class="import-empty">No valid rows found. Make sure your CSV has a header row and at least one data row with a Stock # value.</div>`;
+      preview.innerHTML = `<div class="import-empty">No valid rows found. Make sure your file has a header row and at least one row with a Stock # value.</div>`;
       return;
     }
 
-    // Flag rows with issues
-    const validSources = [...SOURCES.map(s => s.toLowerCase())];
-    const validStores  = [...STORES.map(s => s.toLowerCase())];
-
-    const annotated = rows.map(r => ({
+    const validSources = SOURCES.map(s => s.toLowerCase());
+    const validStores  = STORES.map(s => s.toLowerCase());
+    const annotated    = rows.map(r => ({
       ...r,
       _warnSource: r.source && !validSources.includes(r.source.toLowerCase()),
       _warnStore:  r.store  && !validStores.includes(r.store.toLowerCase()),
     }));
-
     const warnings = annotated.filter(r => r._warnSource || r._warnStore).length;
 
     preview.innerHTML = `
       <div class="import-preview-header">
         <div class="import-preview-count">
-          <strong>${rows.length}</strong> rows ready to import
-          ${warnings ? `<span class="import-warn-badge">⚠ ${warnings} rows have unrecognized source or store — they'll import as-is</span>` : ''}
+          <strong>${rows.length}</strong> rows ready
+          ${warnings ? `<span class="import-warn-badge">⚠ ${warnings} unrecognized source/store — will import as-is</span>` : ''}
         </div>
-        <button class="btn-import-confirm" id="btn-import-confirm">
-          Import ${rows.length} records →
-        </button>
+        <button class="btn-import-confirm" id="btn-import-confirm">Import ${rows.length} records →</button>
       </div>
       <div class="import-table-wrap">
         <table class="import-table">
@@ -694,16 +636,16 @@ const Purchases = {
             <th>VIN</th><th>Source</th><th>Store</th><th>Comments</th>
           </tr></thead>
           <tbody>
-            ${annotated.map(r => `<tr class="${r._warnSource||r._warnStore ? 'import-row-warn' : ''}">
-              <td>${r.date||'—'}</td>
-              <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock||'—'}</td>
-              <td>${r.year||'—'}</td>
-              <td>${r.make||'—'}</td>
-              <td>${r.model||'—'}</td>
-              <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.vin||'—'}</td>
-              <td><span class="src-badge src-${(r.source||'').replace(/\s/g,'')}">${r.source||'—'}</span></td>
-              <td>${r.store||'—'}</td>
-              <td style="color:var(--text-3);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comments||''}</td>
+            ${annotated.map(r => `<tr class="${r._warnSource || r._warnStore ? 'import-row-warn' : ''}">
+              <td>${r.date || '—'}</td>
+              <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || '—'}</td>
+              <td>${r.year || '—'}</td>
+              <td>${r.make || '—'}</td>
+              <td>${r.model || '—'}</td>
+              <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.vin || '—'}</td>
+              <td><span class="src-badge src-${(r.source||'').replace(/\s/g,'')}">${r.source || '—'}</span></td>
+              <td>${r.store || '—'}</td>
+              <td style="color:var(--text-3);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comments || ''}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -729,30 +671,28 @@ const Purchases = {
     const col = collection(db, 'purchases');
     let success = 0, failed = 0;
 
-    // Write in batches of 10 to avoid hammering Firestore
-    const chunks = [];
-    for (let i = 0; i < rows.length; i += 10) chunks.push(rows.slice(i, i+10));
-
-    for (const chunk of chunks) {
+    // Batch in chunks of 10
+    for (let i = 0; i < rows.length; i += 10) {
+      const chunk = rows.slice(i, i + 10);
       await Promise.all(chunk.map(async r => {
         try {
           await addDoc(col, {
-            date:      r.date      || '',
-            stock:     r.stock     || '',
-            year:      r.year      || '',
-            make:      r.make      || '',
-            model:     r.model     || '',
-            vin:       r.vin       || '',
-            source:    r.source    || '',
-            store:     r.store     || '',
-            notes:     r.comments  || '',
+            date:      r.date     || '',
+            stock:     r.stock    || '',
+            year:      r.year     || '',
+            make:      r.make     || '',
+            model:     r.model    || '',
+            vin:       r.vin      || '',
+            source:    r.source   || '',
+            store:     r.store    || '',
+            notes:     r.comments || '',
             buyer,
             arb:       null,
             createdAt: new Date().toISOString(),
           });
           success++;
         } catch(e) {
-          console.error('Import row failed:', e, r);
+          console.error('Row failed:', e, r);
           failed++;
         }
       }));
@@ -767,11 +707,8 @@ const Purchases = {
       btn.disabled = false;
     }
   },
-
 };
 
 export default Purchases;
-window.Purchases = Purchases;
 
-// ---- helpers ------------------------------------------------
-function today() { return new Date().toISOString().slice(0,10); }
+function today() { return new Date().toISOString().slice(0, 10); }
