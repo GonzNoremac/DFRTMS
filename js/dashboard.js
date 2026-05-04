@@ -160,7 +160,7 @@ const Dashboard = {
     if (stockToNum !== null && hasInv) {
       const pct = stockToNum > 0 ? currentInv / stockToNum : 1;
       if (currentInv >= stockToNum)   statusPill = `<span class="status-pill pill-overstocked">Stocked</span>`;
-      else if (pct < 0.7)             statusPill = `<span class="status-pill pill-critical">Critical — buy now</span>`;
+      else if (pct < 0.75)             statusPill = `<span class="status-pill pill-critical">Critical — buy now</span>`;
       else if (pct < 0.9)             statusPill = `<span class="status-pill pill-low">Low — monitor closely</span>`;
       else                            statusPill = `<span class="status-pill pill-ok">On track</span>`;
     }
