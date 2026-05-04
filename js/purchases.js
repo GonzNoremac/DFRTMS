@@ -82,7 +82,11 @@ const Purchases = {
           ${BUYERS.map(b=>`<option value="${b}" ${this.filterBuyer===b?'selected':''}>${b}</option>`).join('')}
         </select>
         <span class="record-count" id="p-count"></span>
+        <button class="btn-import" id="btn-import">⬆ Import CSV</button>
       </div>
+
+      <!-- Import panel (hidden until triggered) -->
+      <div id="import-panel" class="import-panel hidden"></div>
 
       <div class="p-card">
         <table class="p-table">
@@ -108,6 +112,7 @@ const Purchases = {
     this.bindQuickAdd();
     this.bindFilters();
     this.bindTableSort();
+    this.bindImport();
     this.subscribeFirestore();
   },
 
@@ -483,6 +488,286 @@ const Purchases = {
       this.deleteRecord(id);
     });
   },
+};
+
+
+  // ============================================================
+  //  CSV IMPORT
+  // ============================================================
+
+  bindImport() {
+    document.getElementById('btn-import')
+      .addEventListener('click', () => this.openImportPanel());
+  },
+
+  openImportPanel() {
+    const panel = document.getElementById('import-panel');
+    panel.classList.remove('hidden');
+    panel.innerHTML = `
+      <div class="import-header">
+        <div class="import-title">Import purchases from CSV</div>
+        <button class="import-close" id="import-close">✕</button>
+      </div>
+
+      <div class="import-body">
+        <div class="import-buyer-row">
+          <div class="import-buyer-label">Assign all imported records to buyer:</div>
+          <select id="import-buyer" class="import-buyer-select">
+            <option value="">— Select buyer —</option>
+            ${BUYERS.map(b => `<option>${b}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="import-drop" id="import-drop">
+          <div class="import-drop-icon">📄</div>
+          <div class="import-drop-text">Drop your CSV here or <label for="import-file" class="import-file-link">browse</label></div>
+          <div class="import-drop-hint">Expected columns: Date, Stock #, Year, Make, Model, VIN, Source, Store, Comments</div>
+          <input type="file" id="import-file" accept=".csv" style="display:none">
+        </div>
+
+        <div id="import-preview"></div>
+      </div>
+    `;
+
+    document.getElementById('import-close')
+      .addEventListener('click', () => this.closeImportPanel());
+
+    // File input
+    const fileInput = document.getElementById('import-file');
+    fileInput.addEventListener('change', e => {
+      if (e.target.files[0]) this.readCSV(e.target.files[0]);
+    });
+
+    // Drag and drop
+    const drop = document.getElementById('import-drop');
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.csv')) this.readCSV(file);
+      else Toast.show('Please drop a .csv file', 'error');
+    });
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+
+  closeImportPanel() {
+    const panel = document.getElementById('import-panel');
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+  },
+
+  readCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = this.parseCSV(e.target.result);
+      this.showPreview(rows);
+    };
+    reader.readAsText(file);
+  },
+
+  parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+
+    // Normalize headers — trim whitespace, lowercase for matching
+    const headers = lines[0].split('\t').map(h => h.trim());
+
+    // Map CSV header → our field name
+    const headerMap = {
+      'date':     'date',
+      'stock #':  'stock',
+      'stock#':   'stock',
+      'year':     'year',
+      'make':     'make',
+      'model':    'model',
+      'vin':      'vin',
+      'source':   'source',
+      'store':    'store',
+      'comments': 'comments',
+      'comment':  'comments',
+    };
+
+    // Check if tab-separated; fall back to comma
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const hdrs = lines[0].split(sep).map(h => h.trim());
+
+    const fieldNames = hdrs.map(h => headerMap[h.toLowerCase()] || null);
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      // Handle quoted CSV fields
+      const cols = this.splitCSVLine(line, sep);
+      const row = {};
+      fieldNames.forEach((field, idx) => {
+        if (field) row[field] = (cols[idx] || '').trim();
+      });
+
+      // Skip rows with no stock number
+      if (!row.stock) continue;
+
+      // Normalize date — Excel sometimes exports as M/D/YYYY
+      if (row.date) row.date = this.normalizeDate(row.date);
+
+      // Normalize VIN to uppercase
+      if (row.vin) row.vin = row.vin.toUpperCase();
+
+      // Year as number
+      if (row.year) row.year = parseInt(row.year) || '';
+
+      rows.push(row);
+    }
+    return rows;
+  },
+
+  splitCSVLine(line, sep) {
+    if (sep === '\t') return line.split('\t');
+    // Basic CSV split respecting quoted fields
+    const result = [];
+    let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQuote = !inQuote; }
+      else if (c === ',' && !inQuote) { result.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    result.push(cur);
+    return result;
+  },
+
+  normalizeDate(raw) {
+    if (!raw) return '';
+    // Already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    // M/D/YYYY or MM/DD/YYYY
+    const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+    }
+    // M/D/YY
+    const m2 = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (m2) {
+      const yr = parseInt(m2[3]) + 2000;
+      return `${yr}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
+    }
+    return raw;
+  },
+
+  showPreview(rows) {
+    const preview = document.getElementById('import-preview');
+    if (!rows.length) {
+      preview.innerHTML = `<div class="import-empty">No valid rows found. Make sure your CSV has a header row and at least one data row with a Stock # value.</div>`;
+      return;
+    }
+
+    // Flag rows with issues
+    const validSources = [...SOURCES.map(s => s.toLowerCase())];
+    const validStores  = [...STORES.map(s => s.toLowerCase())];
+
+    const annotated = rows.map(r => ({
+      ...r,
+      _warnSource: r.source && !validSources.includes(r.source.toLowerCase()),
+      _warnStore:  r.store  && !validStores.includes(r.store.toLowerCase()),
+    }));
+
+    const warnings = annotated.filter(r => r._warnSource || r._warnStore).length;
+
+    preview.innerHTML = `
+      <div class="import-preview-header">
+        <div class="import-preview-count">
+          <strong>${rows.length}</strong> rows ready to import
+          ${warnings ? `<span class="import-warn-badge">⚠ ${warnings} rows have unrecognized source or store — they'll import as-is</span>` : ''}
+        </div>
+        <button class="btn-import-confirm" id="btn-import-confirm">
+          Import ${rows.length} records →
+        </button>
+      </div>
+      <div class="import-table-wrap">
+        <table class="import-table">
+          <thead><tr>
+            <th>Date</th><th>Stock #</th><th>Year</th><th>Make</th><th>Model</th>
+            <th>VIN</th><th>Source</th><th>Store</th><th>Comments</th>
+          </tr></thead>
+          <tbody>
+            ${annotated.map(r => `<tr class="${r._warnSource||r._warnStore ? 'import-row-warn' : ''}">
+              <td>${r.date||'—'}</td>
+              <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock||'—'}</td>
+              <td>${r.year||'—'}</td>
+              <td>${r.make||'—'}</td>
+              <td>${r.model||'—'}</td>
+              <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.vin||'—'}</td>
+              <td><span class="src-badge src-${(r.source||'').replace(/\s/g,'')}">${r.source||'—'}</span></td>
+              <td>${r.store||'—'}</td>
+              <td style="color:var(--text-3);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comments||''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    document.getElementById('btn-import-confirm')
+      .addEventListener('click', () => this.confirmImport(rows));
+  },
+
+  async confirmImport(rows) {
+    const buyer = document.getElementById('import-buyer').value;
+    if (!buyer) {
+      Toast.show('Select a buyer before importing', 'error');
+      document.getElementById('import-buyer').focus();
+      return;
+    }
+
+    const btn = document.getElementById('btn-import-confirm');
+    btn.textContent = 'Importing…';
+    btn.disabled = true;
+
+    const col = collection(db, 'purchases');
+    let success = 0, failed = 0;
+
+    // Write in batches of 10 to avoid hammering Firestore
+    const chunks = [];
+    for (let i = 0; i < rows.length; i += 10) chunks.push(rows.slice(i, i+10));
+
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(async r => {
+        try {
+          await addDoc(col, {
+            date:      r.date      || '',
+            stock:     r.stock     || '',
+            year:      r.year      || '',
+            make:      r.make      || '',
+            model:     r.model     || '',
+            vin:       r.vin       || '',
+            source:    r.source    || '',
+            store:     r.store     || '',
+            notes:     r.comments  || '',
+            buyer,
+            arb:       null,
+            createdAt: new Date().toISOString(),
+          });
+          success++;
+        } catch(e) {
+          console.error('Import row failed:', e, r);
+          failed++;
+        }
+      }));
+    }
+
+    if (failed === 0) {
+      Toast.show(`Imported ${success} records`, 'success');
+      this.closeImportPanel();
+    } else {
+      Toast.show(`${success} imported, ${failed} failed`, 'error');
+      btn.textContent = `Retry (${failed} failed)`;
+      btn.disabled = false;
+    }
+  },
+
 };
 
 export default Purchases;
