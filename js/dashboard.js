@@ -13,11 +13,19 @@ const saveTimers = {};
 
 const Dashboard = {
 
-  state: Object.fromEntries(
-    STORES.map(s => [s, { forecast: '', stockPct: '', currentInv: '', tracking: '' }])
-  ),
+  state: {},
+
+  initState() {
+    // Called at render time, after all imports have resolved
+    if (Object.keys(this.state).length === 0) {
+      STORES.forEach(s => {
+        this.state[s] = { forecast: '', stockPct: '', currentInv: '', tracking: '' };
+      });
+    }
+  },
 
   async render(container) {
+    this.initState();
     container.innerHTML = `
       <div class="page-header">
         <div class="page-title">Dashboard</div>
