@@ -11,10 +11,9 @@ import {
 
 import Dashboard from './dashboard.js';
 import Purchases from './purchases.js';
+import { STORES, SOURCES, BUYERS } from './constants.js';
 
-export const STORES  = ['Chevrolet','Chrysler','Ford BHC','Ford Kingman','Honda','Nissan','Toyota'];
-export const SOURCES = ['ICO','Enterprise','VCG','Bidacar','ACV','Openlane','Manheim','Transfer'];
-export const BUYERS  = ['Gonzalez','Manchester'];
+export { STORES, SOURCES, BUYERS };
 
 export const Toast = {
   t: null,
