@@ -11,6 +11,7 @@ import {
 
 import Dashboard from './dashboard.js';
 import Purchases from './purchases.js';
+import Calendar  from './calendar.js';
 import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
 const App = {
@@ -88,14 +89,7 @@ const App = {
     const content = document.getElementById('page-content');
     if      (page === 'dashboard') Dashboard.render(content);
     else if (page === 'purchases') Purchases.render(content);
-    else {
-      const titles = { ico:'ICO Appraisals', transport:'Transport', payscale:'Pay Scale', arbitration:'Arbitration' };
-      content.innerHTML = `
-        <div class="page-header">
-          <div class="page-title">${titles[page] || page}</div>
-          <div class="page-sub">Coming soon — build out next.</div>
-        </div>`;
-    }
+    else if (page === 'calendar')  Calendar.render(content);
   },
 
   authError(code) {
