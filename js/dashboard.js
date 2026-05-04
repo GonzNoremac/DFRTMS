@@ -6,8 +6,7 @@
 // ============================================================
 
 import { db, doc, getDoc, setDoc } from './firebase.js';
-import { STORES } from './constants.js';
-import { Toast } from './app.js';
+import { STORES, Toast } from './constants.js';
 
 // Debounce timer per store so we don't write on every keystroke
 const saveTimers = {};

@@ -7,8 +7,7 @@ import {
   collection, addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, doc
 } from './firebase.js';
-import { STORES, SOURCES, BUYERS } from './constants.js';
-import { Toast } from './app.js';
+import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
 let unsubscribe = null;
 

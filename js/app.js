@@ -11,21 +11,7 @@ import {
 
 import Dashboard from './dashboard.js';
 import Purchases from './purchases.js';
-import { STORES, SOURCES, BUYERS } from './constants.js';
-
-export { STORES, SOURCES, BUYERS };
-
-export const Toast = {
-  t: null,
-  show(msg, type = '') {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.className = 'toast ' + (type || '');
-    el.classList.remove('hidden');
-    clearTimeout(this.t);
-    this.t = setTimeout(() => el.classList.add('hidden'), 2800);
-  }
-};
+import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
 const App = {
   user: null,
