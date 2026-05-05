@@ -1269,3 +1269,64 @@ body {
 .auc-history-row:hover { background: var(--bg-hover); }
 .auc-history-label { font-size: 13px; font-weight: 500; color: var(--text-1); }
 .auc-history-meta  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ---- Auction history modal ---- */
+.auc-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; backdrop-filter: blur(2px);
+}
+.auc-modal-overlay.hidden { display: none; }
+.auc-modal {
+  background: var(--bg-surface); border: 1px solid var(--border-med);
+  border-radius: var(--r-lg); width: 520px; max-width: calc(100vw - 32px);
+  max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.auc-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.auc-modal-title { font-size: 14px; font-weight: 600; color: var(--text-1); }
+.auc-modal-close {
+  background: none; border: none; font-size: 14px; color: var(--text-3);
+  cursor: pointer; padding: 2px 6px; border-radius: var(--r-sm);
+  transition: all 0.1s; font-family: var(--font-sans);
+}
+.auc-modal-close:hover { background: var(--bg-hover); color: var(--text-1); }
+.auc-modal-body { overflow-y: auto; padding: 8px 0; }
+
+/* ---- Auction tab switcher ---- */
+.auc-tab-btn {
+  background: transparent; border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 6px 14px; font-size: 12px; font-weight: 500;
+  color: var(--text-2); font-family: var(--font-sans); cursor: pointer;
+  transition: all 0.12s; display: inline-flex; align-items: center; gap: 6px;
+}
+.auc-tab-btn:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-med); }
+.auc-tab-btn.active { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent); }
+.auc-tab-count {
+  background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px; line-height: 1.4;
+}
+
+/* ---- Wholesale bid inputs ---- */
+.ws-bid-input {
+  width: 80px; background: var(--bg-raised); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 5px 8px; font-size: 12px;
+  font-family: var(--font-mono); color: var(--text-1); outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s; text-align: right;
+}
+.ws-bid-input::-webkit-outer-spin-button,
+.ws-bid-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ws-bid-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+/* ---- Auction store filter select ---- */
+.auc-store-select {
+  background: var(--bg-surface); border: 1.5px solid var(--border);
+  border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 500;
+  color: var(--text-2); font-family: var(--font-sans); outline: none;
+  cursor: pointer; transition: all 0.12s;
+}
+.auc-store-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
