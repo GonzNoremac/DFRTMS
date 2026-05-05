@@ -13,7 +13,6 @@ import Dashboard from './dashboard.js';
 import Purchases from './purchases.js';
 import Calendar  from './calendar.js';
 import Auction   from './auction.js';
-import Auction   from './auction.js';
 import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
 const App = {
@@ -93,7 +92,6 @@ const App = {
     else if (page === 'purchases') Purchases.render(content);
     else if (page === 'calendar')  Calendar.render(content);
     else if (page === 'auction')   Auction.render(content);
-    else if (page === 'auction')    Auction.render(content);
   },
 
   authError(code) {
