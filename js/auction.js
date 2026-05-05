@@ -104,11 +104,18 @@ const Auction = {
             ${hasV ? `${this.vehicles.length} vehicles` : 'No vehicles yet'}
           </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           ${closed ? `
             <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
-            <button class="auc-tab-btn${this.wholesaleView?' active':''}"  onclick="Auction.setView(true)">Wholesale listings ${(this.wholesale||[]).length > 0 ? `<span class='auc-tab-count'>${(this.wholesale||[]).length}</span>` : ''}</button>
-          ` : `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>`}
+            <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Wholesale listings${(this.wholesale||[]).length>0?` <span class='auc-tab-count'>${(this.wholesale||[]).length}</span>`:''}</button>
+            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
+          ` : `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
+            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>`}
+          ${hasV ? `
+            <button class="auc-btn-secondary" onclick="Auction.exportManagerReview()">↓ Manager review</button>
+            <button class="auc-btn-secondary" onclick="Auction.exportTitleClerk()">↓ Title clerk</button>
+            <button class="auc-btn-secondary" onclick="Auction.exportOnlineListings()">↓ Online listings</button>
+          ` : ''}
         </div>
       </div>
 
@@ -218,8 +225,8 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Mi.</th><th>Reserve</th>
-            <th>Max Bid</th><th>Bid By</th><th>Book / MMR / Cost</th>
+            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Reserve</th>
+            <th>Max Bid</th><th>Bid By</th><th>Cost / Book / MMR</th>
             <th>Profit</th><th>Status</th><th>Decision</th>
           </tr></thead>
           <tbody>${rows.map(r => this.rowHTML(r, closed)).join('')}</tbody>
@@ -270,14 +277,13 @@ const Auction = {
       <td><div style="font-weight:500">${r.year} ${r.make} ${r.model}</div>
           <div style="font-size:11px;color:var(--text-3)">${r.color||''}</div></td>
       <td style="font-size:11px;color:var(--text-2)">${r.store||'—'}</td>
-      <td style="font-family:var(--font-mono);font-size:11px">${r.miles ? Number(r.miles).toLocaleString() : '—'}</td>
       <td style="font-family:var(--font-mono);font-size:11px">${reserve > 0 ? fmt(reserve) : '—'}</td>
       <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${bid>0?'var(--text-1)':'var(--text-3)'}">${bid>0?fmt(bid):'No bid'}</td>
       <td style="font-size:12px">${r.bidBy||'—'}</td>
       <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
-        <span style="color:var(--text-2)">${r.book?fmt(r.book):'—'}</span><br>
-        <span style="color:var(--text-3);font-size:10px">${r.mmr ?fmt(r.mmr) :'—'}</span><br>
-        <span style="color:var(--text-3);font-size:10px">${r.cost?fmt(r.cost):'—'}</span>
+        <span style="color:var(--text-2);font-weight:600">${r.cost?fmt(r.cost):'—'}</span><br>
+        <span style="color:var(--text-3);font-size:10px">${r.book?fmt(r.book):'—'}</span><br>
+        <span style="color:var(--text-3);font-size:10px">${r.mmr ?fmt(r.mmr) :'—'}</span>
       </td>
       <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${pc}">${profit!==null?(profit>=0?'+':'')+fmt(profit):'—'}</td>
       <td>${resBadge}</td>
@@ -320,12 +326,12 @@ const Auction = {
           <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
               <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
           <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
-          <td style="font-family:var(--font-mono);font-size:11px">${v.miles?Number(v.miles).toLocaleString():'—'}</td>
           <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
-            <span style="color:var(--text-2)">${fmt(v.book)}</span><br>
-            <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span><br>
-            <span style="color:var(--text-3);font-size:10px">${fmt(v.cost)}</span>
+            <span style="color:var(--text-2);font-weight:600">${fmt(v.cost)}</span><br>
+            <span style="color:var(--text-3);font-size:10px">${fmt(v.book)}</span><br>
+            <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span>
           </td>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${v.auctionBid?fmt(v.auctionBid):'—'}</td>
           <td style="text-align:center;font-size:11px;color:var(--text-3)">—</td>
           <td><span class="auc-res-badge hit" style="font-size:11px">Sold — ${v.soldOn}</span></td>
           <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--green)">${fmt(v.soldPrice)}</td>
@@ -342,11 +348,13 @@ const Auction = {
         <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
             <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
         <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
-        <td style="font-family:var(--font-mono);font-size:11px">${v.miles?Number(v.miles).toLocaleString():'—'}</td>
         <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
-          <span style="color:var(--text-2)">${fmt(v.book)}</span><br>
-          <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span><br>
-          <span style="color:var(--text-3);font-size:10px">${fmt(v.cost)}</span>
+          <span style="color:var(--text-2);font-weight:600">${fmt(v.cost)}</span><br>
+          <span style="color:var(--text-3);font-size:10px">${fmt(v.book)}</span><br>
+          <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span>
+        </td>
+        <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${v.auctionBid?'var(--amber)':'var(--text-4)'}">
+          ${v.auctionBid?fmt(v.auctionBid):'—'}
         </td>
         <td>
           <div style="display:flex;flex-direction:column;gap:3px;">
@@ -410,8 +418,9 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Mi.</th>
-            <th>Book / MMR / Cost</th>
+            <th>Stock #</th><th>Vehicle</th><th>Store</th>
+            <th>Cost / Book / MMR</th>
+            <th>Auction high bid</th>
             <th>Platform bids</th>
             <th>Winning bid</th><th>Profit</th><th>Action</th>
           </tr></thead>
@@ -444,6 +453,92 @@ const Auction = {
     this.saveSession();
     Toast.show(`${stock} sold on ${platform}`, 'success');
     this.renderSession(document.getElementById('auc-workspace'));
+  },
+
+  // ---- Exports -----------------------------------------------
+  csvDownload(filename, headers, rows) {
+    const escape = v => {
+      const s = (v === null || v === undefined) ? '' : String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))];
+    const blob  = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a     = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob), download: filename
+    });
+    a.click(); URL.revokeObjectURL(a.href);
+  },
+
+  // Export 1: Manager review — ALL vehicles, all data, blank Accept column
+  exportManagerReview() {
+    if (!this.vehicles.length) { Toast.show('No vehicles to export', 'error'); return; }
+    const fmt  = n => n ? '$' + Number(n).toLocaleString() : '';
+    const dec  = d => ({ auto:'Auto Accepted', accepted:'Manually Accepted', denied:'Denied', nosale:'No Sale', pending:'Pending' }[d] || d);
+    const date = this.sessionLabel.replace(/[^a-z0-9]/gi,'_');
+    this.csvDownload(`${date}_manager_review.csv`,
+      ['Stock #','Store','Year','Make','Model','Color','VIN','Miles','Reserve','Max Bid','Bid By',
+       'Cost','Book','MMR','Profit','Current Decision','Manager Accept (Y/N)'],
+      this.vehicles.map(v => {
+        const bid    = parseFloat(v.maxBid) || 0;
+        const cost   = parseFloat(v.cost)   || 0;
+        const profit = bid > 0 && cost > 0  ? bid - cost : '';
+        return [
+          v.stock, v.store||'', v.year, v.make, v.model, v.color||'', v.vin||'',
+          v.miles||'', v.reserve||'', bid||'', v.bidBy||'',
+          v.cost||'', v.book||'', v.mmr||'',
+          profit, dec(v.decision), ''
+        ];
+      })
+    );
+    Toast.show(`Exported ${this.vehicles.length} vehicles`, 'success');
+  },
+
+  // Export 2: Title clerk — accepted vehicles only (auto + manual)
+  exportTitleClerk() {
+    const sold = this.vehicles.filter(v => v.decision === 'auto' || v.decision === 'accepted');
+    if (!sold.length) { Toast.show('No accepted vehicles to export', 'error'); return; }
+    const fmt  = n => n ? '$' + Number(n).toLocaleString() : '';
+    const date = this.sessionLabel.replace(/[^a-z0-9]/gi,'_');
+    this.csvDownload(`${date}_title_clerk.csv`,
+      ['Stock #','Store','Year','Make','Model','Color','VIN','Miles',
+       'Sale Price','Bid By','Cost','Book','MMR','Profit','Decision Type'],
+      sold.map(v => {
+        const bid    = parseFloat(v.maxBid) || 0;
+        const cost   = parseFloat(v.cost)   || 0;
+        const profit = bid > 0 && cost > 0  ? bid - cost : '';
+        return [
+          v.stock, v.store||'', v.year, v.make, v.model, v.color||'', v.vin||'',
+          v.miles||'', bid||'', v.bidBy||'',
+          v.cost||'', v.book||'', v.mmr||'',
+          profit, v.decision === 'auto' ? 'Auto Accepted' : 'Manually Accepted'
+        ];
+      })
+    );
+    Toast.show(`Exported ${sold.length} vehicles`, 'success');
+  },
+
+  // Export 3: Online listings — everything that did NOT sell
+  exportOnlineListings() {
+    const unsold = this.vehicles.filter(v =>
+      v.decision === 'denied' || v.decision === 'nosale' || v.decision === 'pending'
+    );
+    if (!unsold.length) { Toast.show('No unsold vehicles to export', 'error'); return; }
+    const fmt  = n => n ? '$' + Number(n).toLocaleString() : '';
+    const date = this.sessionLabel.replace(/[^a-z0-9]/gi,'_');
+    this.csvDownload(`${date}_online_listings.csv`,
+      ['Stock #','Store','Year','Make','Model','Color','VIN','Miles',
+       'Reserve','Max Bid','Bid By','Cost','Book','MMR','Decision'],
+      unsold.map(v => {
+        const dec = { denied:'Denied', nosale:'No Sale', pending:'Pending' }[v.decision] || v.decision;
+        return [
+          v.stock, v.store||'', v.year, v.make, v.model, v.color||'', v.vin||'',
+          v.miles||'', v.reserve||'', v.maxBid||'', v.bidBy||'',
+          v.cost||'', v.book||'', v.mmr||'', dec
+        ];
+      })
+    );
+    Toast.show(`Exported ${unsold.length} vehicles`, 'success');
   },
 
   // ---- File loading ------------------------------------------
@@ -621,8 +716,9 @@ const Auction = {
     const existingMap = {};
     (this.wholesale || []).forEach(w => { existingMap[w.stock] = w; });
     this.wholesale = unsold.map(v => existingMap[v.stock] || {
-      stock:   v.stock,
-      store:   v.store,
+      stock:      v.stock,
+      store:      v.store,
+      auctionBid: v.maxBid || null,
       year:    v.year,
       make:    v.make,
       model:   v.model,
