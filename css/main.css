@@ -1330,3 +1330,26 @@ body {
   cursor: pointer; transition: all 0.12s;
 }
 .auc-store-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+/* ---- Compact table adjustments ---- */
+.auc-table th, .auc-table td,
+.p-table th, .p-table td {
+  padding: 8px 10px;
+}
+.ws-bid-sm {
+  width: 72px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+/* VIN truncation */
+.p-table .td-vin {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Reserve status badge — narrower */
+.auc-res-badge {
+  font-size: 10px;
+  white-space: nowrap;
+}
