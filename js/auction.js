@@ -218,9 +218,9 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Miles</th><th>Reserve</th>
-            <th>Max Bid</th><th>Bid By</th><th>Book</th><th>MMR</th>
-            <th>Cost</th><th>Profit</th><th>Reserve status</th><th>Decision</th>
+            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Mi.</th><th>Reserve</th>
+            <th>Max Bid</th><th>Bid By</th><th>Book / MMR / Cost</th>
+            <th>Profit</th><th>Status</th><th>Decision</th>
           </tr></thead>
           <tbody>${rows.map(r => this.rowHTML(r, closed)).join('')}</tbody>
         </table>
@@ -274,9 +274,11 @@ const Auction = {
       <td style="font-family:var(--font-mono);font-size:11px">${reserve > 0 ? fmt(reserve) : '—'}</td>
       <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${bid>0?'var(--text-1)':'var(--text-3)'}">${bid>0?fmt(bid):'No bid'}</td>
       <td style="font-size:12px">${r.bidBy||'—'}</td>
-      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${r.book?fmt(r.book):'—'}</td>
-      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${r.mmr ?fmt(r.mmr) :'—'}</td>
-      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${r.cost?fmt(r.cost):'—'}</td>
+      <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
+        <span style="color:var(--text-2)">${r.book?fmt(r.book):'—'}</span><br>
+        <span style="color:var(--text-3);font-size:10px">${r.mmr ?fmt(r.mmr) :'—'}</span><br>
+        <span style="color:var(--text-3);font-size:10px">${r.cost?fmt(r.cost):'—'}</span>
+      </td>
       <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${pc}">${profit!==null?(profit>=0?'+':'')+fmt(profit):'—'}</td>
       <td>${resBadge}</td>
       <td><div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">${decision}</div></td>
@@ -319,10 +321,12 @@ const Auction = {
               <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
           <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
           <td style="font-family:var(--font-mono);font-size:11px">${v.miles?Number(v.miles).toLocaleString():'—'}</td>
-          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${fmt(v.book)}</td>
-          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${fmt(v.mmr)}</td>
-          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${fmt(v.cost)}</td>
-          <td colspan="3" style="text-align:center;font-size:11px;color:var(--text-3)">—</td>
+          <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
+            <span style="color:var(--text-2)">${fmt(v.book)}</span><br>
+            <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span><br>
+            <span style="color:var(--text-3);font-size:10px">${fmt(v.cost)}</span>
+          </td>
+          <td style="text-align:center;font-size:11px;color:var(--text-3)">—</td>
           <td><span class="auc-res-badge hit" style="font-size:11px">Sold — ${v.soldOn}</span></td>
           <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--green)">${fmt(v.soldPrice)}</td>
           <td></td>
@@ -339,21 +343,36 @@ const Auction = {
             <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
         <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
         <td style="font-family:var(--font-mono);font-size:11px">${v.miles?Number(v.miles).toLocaleString():'—'}</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${fmt(v.book)}</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${fmt(v.mmr)}</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${fmt(v.cost)}</td>
-        <td><input type="number" class="ws-bid-input" placeholder="—"
-              value="${v.openlane||''}" data-stock="${v.stock}" data-platform="openlane"
-              style="-moz-appearance:textfield;${winning?.platform==='Openlane'?'color:var(--green);font-weight:600;':''}"
-              onchange="Auction.updateBid('${v.stock}','openlane',this.value)"></td>
-        <td><input type="number" class="ws-bid-input" placeholder="—"
-              value="${v.acv||''}" data-stock="${v.stock}" data-platform="acv"
-              style="-moz-appearance:textfield;${winning?.platform==='ACV'?'color:var(--green);font-weight:600;':''}"
-              onchange="Auction.updateBid('${v.stock}','acv',this.value)"></td>
-        <td><input type="number" class="ws-bid-input" placeholder="—"
-              value="${v.manheim||''}" data-stock="${v.stock}" data-platform="manheim"
-              style="-moz-appearance:textfield;${winning?.platform==='Manheim'?'color:var(--green);font-weight:600;':''}"
-              onchange="Auction.updateBid('${v.stock}','manheim',this.value)"></td>
+        <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
+          <span style="color:var(--text-2)">${fmt(v.book)}</span><br>
+          <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span><br>
+          <span style="color:var(--text-3);font-size:10px">${fmt(v.cost)}</span>
+        </td>
+        <td>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">OPENLANE</span>
+              <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
+                value="${v.openlane||''}"
+                style="-moz-appearance:textfield;${winning?.platform==='Openlane'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
+                onchange="Auction.updateBid('${v.stock}','openlane',this.value)">
+            </div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">ACV</span>
+              <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
+                value="${v.acv||''}"
+                style="-moz-appearance:textfield;${winning?.platform==='ACV'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
+                onchange="Auction.updateBid('${v.stock}','acv',this.value)">
+            </div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">MANHEIM</span>
+              <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
+                value="${v.manheim||''}"
+                style="-moz-appearance:textfield;${winning?.platform==='Manheim'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
+                onchange="Auction.updateBid('${v.stock}','manheim',this.value)">
+            </div>
+          </div>
+        </td>
         <td>
           ${winning
             ? `<span class="auc-res-badge hit">${winning.platform} — ${fmt(winning.val)}</span>`
@@ -391,9 +410,9 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Miles</th>
-            <th>Book</th><th>MMR</th><th>Cost</th>
-            <th>Openlane</th><th>ACV</th><th>Manheim</th>
+            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Mi.</th>
+            <th>Book / MMR / Cost</th>
+            <th>Platform bids</th>
             <th>Winning bid</th><th>Profit</th><th>Action</th>
           </tr></thead>
           <tbody>

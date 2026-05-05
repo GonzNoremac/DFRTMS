@@ -87,13 +87,12 @@ const Purchases = {
             <th style="width:28px"></th>
             <th data-col="date">Date</th>
             <th data-col="stock">Stock #</th>
-            <th data-col="year">Year</th>
-            <th data-col="make">Make</th>
-            <th data-col="model">Model</th>
+            <th data-col="make">Vehicle</th>
             <th>VIN</th>
             <th data-col="source">Source</th>
             <th data-col="store">Store</th>
             <th data-col="buyer">Buyer</th>
+            <th>Notes</th>
           </tr></thead>
           <tbody id="p-tbody">
             <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4)">Loading…</td></tr>
