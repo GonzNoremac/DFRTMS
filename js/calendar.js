@@ -28,8 +28,6 @@ function typeConfig(value) {
   return EVENT_TYPES.find(t => t.value === value) || EVENT_TYPES[EVENT_TYPES.length - 1];
 }
 
-let unsubscribe = null;
-
 const Calendar = {
 
   events:      [],
@@ -38,7 +36,7 @@ const Calendar = {
   selectedDay: null,
 
   render(container) {
-    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
 
     container.innerHTML = `
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -123,7 +121,7 @@ const Calendar = {
 
   subscribeFirestore() {
     const q = query(collection(db, 'calendar_events'), orderBy('date', 'asc'));
-    unsubscribe = onSnapshot(q,
+    this._unsubscribe = onSnapshot(q,
       snapshot => {
         this.events = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         this.renderGrid();

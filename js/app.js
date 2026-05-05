@@ -17,6 +17,7 @@ import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
 const App = {
   user: null,
+  currentPage: null,
 
   init() {
     onAuthStateChanged(auth, user => {
@@ -84,6 +85,14 @@ const App = {
   },
 
   navigate(page) {
+    // Clean up previous page's Firestore listener before navigating away
+    const cleanups = { purchases: Purchases, calendar: Calendar, auction: Auction };
+    if (this.currentPage && cleanups[this.currentPage]) {
+      const prev = cleanups[this.currentPage];
+      if (prev._unsubscribe) { prev._unsubscribe(); prev._unsubscribe = null; }
+    }
+    this.currentPage = page;
+
     document.querySelectorAll('.nav-link[data-page]').forEach(el => {
       el.classList.toggle('active', el.dataset.page === page);
     });

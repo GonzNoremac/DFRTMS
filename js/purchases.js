@@ -9,8 +9,6 @@ import {
 } from './firebase.js';
 import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
-let unsubscribe = null;
-
 const Purchases = {
 
   records:      [],
@@ -24,7 +22,7 @@ const Purchases = {
 
   // ---- Render ------------------------------------------------
   render(container) {
-    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
 
     container.innerHTML = `
       <div class="page-header">
@@ -114,7 +112,7 @@ const Purchases = {
   // ---- Firestore listener ------------------------------------
   subscribeFirestore() {
     const q = query(collection(db, 'purchases'), orderBy('date', 'desc'));
-    unsubscribe = onSnapshot(q,
+    this._unsubscribe = onSnapshot(q,
       snapshot => {
         this.records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         this.renderRows();
