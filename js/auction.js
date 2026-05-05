@@ -107,7 +107,7 @@ const Auction = {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           ${closed ? `
             <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
-            <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Wholesale listings${(this.wholesale||[]).length>0?` <span class='auc-tab-count'>${(this.wholesale||[]).length}</span>`:''}</button>
+            <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Online listings${(this.wholesale||[]).length>0?` <span class='auc-tab-count'>${(this.wholesale||[]).length}</span>`:''}</button>
             <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
           ` : `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
             <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>`}
@@ -300,12 +300,12 @@ const Auction = {
     Toast.show(`${stock} — ${decision}`, 'success');
   },
 
-  // ---- Wholesale listings ------------------------------------
+  // ---- Online listings ------------------------------------
   renderWholesale() {
     const list = this.wholesale || [];
     if (!list.length) return `
       <div class="auc-empty" style="margin-top:12px">
-        <div class="auc-empty-sub">No unsold vehicles — nothing to wholesale.</div>
+        <div class="auc-empty-sub">No unsold vehicles — nothing to list online.</div>
       </div>`;
 
     const active = list.filter(v => v.status !== 'sold');
@@ -708,9 +708,9 @@ const Auction = {
     if (!confirm('Close this auction? You can still view results but no further edits.')) return;
     this.sessionStatus = 'closed';
 
-    // Build wholesale list from vehicles that didn't sell (denied or nosale with a bid)
+    // Carry over everything that was not accepted (denied, no sale, still pending)
     const unsold = this.vehicles.filter(v =>
-      v.decision === 'denied' || v.decision === 'nosale'
+      v.decision !== 'auto' && v.decision !== 'accepted'
     );
     // Merge with existing wholesale entries so we don't overwrite existing bids
     const existingMap = {};
