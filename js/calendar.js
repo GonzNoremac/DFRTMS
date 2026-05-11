@@ -28,6 +28,17 @@ function typeConfig(value) {
   return EVENT_TYPES.find(t => t.value === value) || EVENT_TYPES[EVENT_TYPES.length - 1];
 }
 
+// Escape HTML to prevent XSS from user-entered event data
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const Calendar = {
 
   events:      [],
@@ -213,8 +224,8 @@ const Calendar = {
         <div class="cal-upcoming-item" onclick="Calendar._editEvent('${e.id}')">
           <div class="cal-upcoming-dot" style="background:${tc.color}"></div>
           <div class="cal-upcoming-info">
-            <div class="cal-upcoming-title">${e.title}</div>
-            <div class="cal-upcoming-meta">${e.person} · ${this.formatDate(e.date)}</div>
+            <div class="cal-upcoming-title">${esc(e.title)}</div>
+            <div class="cal-upcoming-meta">${esc(e.person)} · ${this.formatDate(e.date)}</div>
           </div>
         </div>`;
     }).join('');
@@ -255,7 +266,7 @@ const Calendar = {
 
   openEventModal(prefill = {}) {
     const isEdit = !!prefill.id;
-    document.getElementById('cal-modal-title').textContent = isEdit ? 'Edit event' : 'Add event';
+    document.getElementById('cal-modal-title').textContent = isEdit ? 'Edit event' : 'Add event'; // textContent is safe
     document.getElementById('cal-modal-overlay').classList.remove('hidden');
 
     document.getElementById('cal-modal-body').innerHTML = `
@@ -277,7 +288,7 @@ const Calendar = {
         <div class="cal-form-row one">
           <div class="cal-form-group">
             <label>Title / description</label>
-            <input type="text" id="cf-title" value="${prefill.title||''}" placeholder="e.g. Out sick, Manheim auction, Team meeting">
+            <input type="text" id="cf-title" value="${esc(prefill.title||'')}" placeholder="e.g. Out sick, Manheim auction, Team meeting">
           </div>
         </div>
         <div class="cal-form-row two">
@@ -293,7 +304,7 @@ const Calendar = {
         <div class="cal-form-row one">
           <div class="cal-form-group">
             <label>Notes <span style="color:var(--text-4);font-weight:400">(optional)</span></label>
-            <textarea id="cf-note" placeholder="Any additional details…">${prefill.note||''}</textarea>
+            <textarea id="cf-note" placeholder="Any additional details…">${esc(prefill.note||'')}</textarea>
           </div>
         </div>
         <div class="cal-form-actions">

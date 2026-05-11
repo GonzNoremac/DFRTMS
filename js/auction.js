@@ -177,6 +177,37 @@ const Auction = {
       });
       document.getElementById('auc-close-btn')?.addEventListener('click', () => this.closeSession());
     }
+
+    // Delegated listeners for auction table buttons
+    const aucTable = container.querySelector('.auc-table tbody');
+    if (aucTable) {
+      aucTable.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const action   = btn.dataset.action;
+        const idx      = parseInt(btn.dataset.stock);
+        const filtered = this.getFiltered();
+        const rec      = filtered[idx];
+        if (!rec) return;
+        if (action === 'accept') this.setDecision(rec.stock, 'accepted');
+        if (action === 'deny')   this.setDecision(rec.stock, 'denied');
+        if (action === 'sell') {
+          const platform = btn.dataset.platform;
+          const val      = parseFloat(btn.dataset.val);
+          this.sellVehicle(rec.stock, platform, val);
+        }
+      });
+      // Delegated listener for wholesale bid inputs
+      aucTable.addEventListener('change', e => {
+        const input = e.target.closest('[data-bid-stock]');
+        if (!input) return;
+        const wsIdx    = parseInt(input.dataset.bidStock);
+        const platform = input.dataset.bidPlatform;
+        const list     = (this.wholesale||[]).filter(v => v.status !== 'sold');
+        const rec      = list[wsIdx];
+        if (rec) this.updateBid(rec.stock, platform, input.value);
+      });
+    }
   },
 
   setFilter(f) {
@@ -219,7 +250,7 @@ const Auction = {
   },
 
   renderTable(closed) {
-    const rows = this.getFiltered();
+    const rows = this.getFiltered().map((r,i) => ({...r, _idx: i}));
     if (!rows.length) return `<div class="auc-empty" style="margin-top:12px"><div class="auc-empty-sub">No vehicles match this filter.</div></div>`;
     return `
       <div class="auc-table-wrap">
@@ -258,17 +289,17 @@ const Auction = {
       else decision = `<span style="color:var(--text-4);font-size:11px">—</span>`;
     } else if (r.decision === 'accepted') {
       decision = `<span class="auc-decision accepted">Accepted</span>
-        <button class="auc-action-btn deny" onclick="Auction.setDecision('${r.stock}','denied')">Deny</button>`;
+        <button class="auc-action-btn deny" data-action="deny" data-stock="${r._idx}">Deny</button>`;
     } else if (r.decision === 'denied') {
       decision = `<span class="auc-decision denied">Denied</span>
-        <button class="auc-action-btn accept" onclick="Auction.setDecision('${r.stock}','accepted')">Accept</button>`;
+        <button class="auc-action-btn accept" data-action="accept" data-stock="${r._idx}">Accept</button>`;
     } else if (r.decision === 'nosale') {
       decision = `<span class="auc-decision nosale">No sale</span>
-        <button class="auc-action-btn accept" onclick="Auction.setDecision('${r.stock}','accepted')">Accept manually</button>`;
+        <button class="auc-action-btn accept" data-action="accept" data-stock="${r._idx}">Accept manually</button>`;
     } else {
       decision = bid > 0
-        ? `<button class="auc-action-btn accept" onclick="Auction.setDecision('${r.stock}','accepted')">Accept</button>
-           <button class="auc-action-btn deny"   onclick="Auction.setDecision('${r.stock}','denied')">Deny</button>`
+        ? `<button class="auc-action-btn accept" data-action="accept" data-stock="${r._idx}">Accept</button>
+           <button class="auc-action-btn deny"   data-action="deny"   data-stock="${r._idx}">Deny</button>`
         : `<span style="color:var(--text-4);font-size:11px">No bid</span>`;
     }
 
@@ -363,21 +394,21 @@ const Auction = {
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
                 value="${v.openlane||''}"
                 style="-moz-appearance:textfield;${winning?.platform==='Openlane'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
-                onchange="Auction.updateBid('${v.stock}','openlane',this.value)">
+                data-bid-stock="${v._wsIdx}" data-bid-platform="openlane">
             </div>
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">ACV</span>
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
                 value="${v.acv||''}"
                 style="-moz-appearance:textfield;${winning?.platform==='ACV'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
-                onchange="Auction.updateBid('${v.stock}','acv',this.value)">
+                data-bid-stock="${v._wsIdx}" data-bid-platform="acv">
             </div>
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">MANHEIM</span>
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
                 value="${v.manheim||''}"
                 style="-moz-appearance:textfield;${winning?.platform==='Manheim'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
-                onchange="Auction.updateBid('${v.stock}','manheim',this.value)">
+                data-bid-stock="${v._wsIdx}" data-bid-platform="manheim">
             </div>
           </div>
         </td>
@@ -391,7 +422,7 @@ const Auction = {
         </td>
         <td>
           ${winning
-            ? `<button class="auc-action-btn accept" onclick="Auction.sellVehicle('${v.stock}','${winning.platform}',${winning.val})">
+            ? `<button class="auc-action-btn accept" data-action="sell" data-stock="${v._wsIdx}" data-platform="${winning.platform}" data-val="${winning.val}">
                 Sell on ${winning.platform}
                </button>`
             : ''}
@@ -403,8 +434,8 @@ const Auction = {
     const wsFiltered = this.wsFilterStore
       ? list.filter(v => v.store === this.wsFilterStore)
       : list;
-    const wsActive = wsFiltered.filter(v => v.status !== 'sold');
-    const wsSold   = wsFiltered.filter(v => v.status === 'sold');
+    const wsActive = wsFiltered.filter(v => v.status !== 'sold').map((v,i) => ({...v, _wsIdx: i}));
+    const wsSold   = wsFiltered.filter(v => v.status === 'sold').map((v,i) => ({...v, _wsIdx: wsActive.length+i}));
 
     return `
       ${wsStores.length > 1 ? `

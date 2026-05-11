@@ -18,6 +18,7 @@ const Purchases = {
   filterStore:  '',
   filterSource: '',
   filterBuyer:  '',
+  filterMonth:  '',
   searchQ:      '',
 
   // ---- Render ------------------------------------------------
@@ -63,6 +64,10 @@ const Purchases = {
 
       <div class="filter-bar">
         <input type="text" id="p-search" placeholder="Search stock #, VIN, make, model…" value="${this.searchQ}">
+        <select id="p-month">
+          <option value="">All months</option>
+          ${this.getMonths().map(m => `<option value="${m.val}" ${this.filterMonth===m.val?'selected':''}>${m.label}</option>`).join('')}
+        </select>
         <select id="p-store">
           <option value="">All stores</option>
           ${STORES.map(s => `<option value="${s}" ${this.filterStore === s ? 'selected' : ''}>${s}</option>`).join('')}
@@ -208,6 +213,7 @@ const Purchases = {
 
   bindFilters() {
     document.getElementById('p-search').addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
+    document.getElementById('p-month').addEventListener('change',  e => { this.filterMonth  = e.target.value; this.renderRows(); });
     document.getElementById('p-store').addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
     document.getElementById('p-source').addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
     document.getElementById('p-buyer').addEventListener('change',  e => { this.filterBuyer  = e.target.value; this.renderRows(); });
@@ -224,6 +230,24 @@ const Purchases = {
     });
   },
 
+  getMonths() {
+    const seen = new Set();
+    const months = [];
+    // Sort records by date desc to get months in order
+    const sorted = [...this.records].sort((a,b) => (b.date||'').localeCompare(a.date||''));
+    sorted.forEach(r => {
+      if (!r.date) return;
+      const ym = r.date.slice(0, 7); // YYYY-MM
+      if (!seen.has(ym)) {
+        seen.add(ym);
+        const [y, m] = ym.split('-');
+        const label = new Date(y, parseInt(m)-1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        months.push({ val: ym, label });
+      }
+    });
+    return months;
+  },
+
   getFiltered() {
     let data = [...this.records];
     const q = this.searchQ.trim().toLowerCase();
@@ -233,6 +257,7 @@ const Purchases = {
       (r.make   || '').toLowerCase().includes(q) ||
       (r.model  || '').toLowerCase().includes(q)
     );
+    if (this.filterMonth)  data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
     if (this.filterStore)  data = data.filter(r => r.store  === this.filterStore);
     if (this.filterSource) data = data.filter(r => r.source === this.filterSource);
     if (this.filterBuyer)  data = data.filter(r => r.buyer  === this.filterBuyer);
@@ -283,15 +308,17 @@ const Purchases = {
     const srcClass   = 'src-' + (r.source || '').replace(/\s/g, '');
     return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
-      <td>${r.date || '—'}</td>
+      <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
       <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || ''}</td>
-      <td style="color:var(--text-2)">${r.year || '—'}</td>
-      <td>${r.make || '—'}</td>
-      <td>${r.model || '—'}</td>
-      <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.vin || '—'}</td>
+      <td>
+        <div style="font-weight:500;font-size:13px">${r.make || ''} ${r.model || ''}</div>
+        <div style="font-size:11px;color:var(--text-3)">${r.year || ''}</div>
+      </td>
+      <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.vin || ''}">${r.vin ? r.vin.slice(0,8)+'…' : '—'}</td>
       <td><span class="src-badge ${srcClass}">${r.source || ''}</span></td>
       <td style="color:var(--text-2);font-size:12px">${r.store || '—'}</td>
       <td style="font-size:12px;color:var(--text-2)">${r.buyer || '—'}</td>
+      <td style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.notes || ''}">${r.notes || ''}</td>
     </tr>`;
   },
 
