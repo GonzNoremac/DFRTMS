@@ -606,6 +606,13 @@ const Purchases = {
         <button class="import-close" id="import-close">✕</button>
       </div>
       <div class="import-body">
+        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text-1)">Fix Excel serial dates</div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:2px">Scan all existing purchases and convert any Excel serial number dates to real dates</div>
+          </div>
+          <button class="btn" id="fix-serials-btn" style="white-space:nowrap">🔧 Fix serial dates in database</button>
+        </div>
         <div class="import-buyer-row">
           <div class="import-buyer-label">Assign all imported records to buyer:</div>
           <select id="import-buyer" class="import-buyer-select">
@@ -625,6 +632,8 @@ const Purchases = {
 
     document.getElementById('import-close')
       .addEventListener('click', () => this.closeImportPanel());
+    document.getElementById('fix-serials-btn')
+      .addEventListener('click', () => this.fixSerialDates());
 
     document.getElementById('import-file')
       .addEventListener('change', e => {
@@ -649,6 +658,37 @@ const Purchases = {
     const panel = document.getElementById('import-panel');
     panel.classList.add('hidden');
     panel.innerHTML = '';
+  },
+
+  async fixSerialDates() {
+    const btn = document.getElementById('fix-serials-btn');
+    const bad = this.records.filter(r => this.isExcelSerial(String(r.date || '').trim()));
+    if (!bad.length) {
+      Toast.show('No Excel serial dates found — all clear', 'success');
+      return;
+    }
+    if (!confirm(`Found ${bad.length} record${bad.length > 1 ? 's' : ''} with Excel serial dates. Convert them now?\n\nExample: "${bad[0].date}" → "${this.excelSerialToDate(bad[0].date)}"`)) return;
+
+    btn.textContent = 'Fixing…'; btn.disabled = true;
+    let fixed = 0, failed = 0;
+
+    for (const r of bad) {
+      try {
+        const newDate = this.excelSerialToDate(String(r.date).trim());
+        if (!newDate) { failed++; continue; }
+        await updateDoc(doc(db, 'purchases', r.id), { date: newDate });
+        r.date = newDate; // update local copy
+        fixed++;
+      } catch(e) {
+        console.error('Fix failed for', r.id, e);
+        failed++;
+      }
+    }
+
+    btn.textContent = '🔧 Fix serial dates in database'; btn.disabled = false;
+    if (failed === 0) Toast.show(`Fixed ${fixed} date${fixed > 1 ? 's' : ''}`, 'success');
+    else Toast.show(`Fixed ${fixed}, failed ${failed}`, 'error');
+    this.renderRows(); // refresh table
   },
 
   readCSV(file) {
@@ -699,7 +739,11 @@ const Purchases = {
 
       if (!row.stock) continue;
 
-      if (row.date) row.date = this.normalizeDate(row.date);
+      const rawDate = row.date;
+      if (row.date) {
+        row._wasSerial = this.isExcelSerial(String(rawDate).trim());
+        row.date = this.normalizeDate(row.date);
+      }
       if (row.vin)  row.vin  = row.vin.toUpperCase();
       if (row.year) row.year = parseInt(row.year) || '';
 
@@ -720,14 +764,40 @@ const Purchases = {
     return result;
   },
 
+  excelSerialToDate(serial) {
+    // Excel serial: days since Jan 0 1900, with a known leap-year bug (treating 1900 as leap)
+    const n = parseInt(serial);
+    if (isNaN(n) || n < 1) return null;
+    // Adjust for Excel's leap-year bug: subtract 1 extra day for dates after Feb 28 1900
+    const adj    = n > 59 ? n - 1 : n;
+    const epoch  = new Date(1900, 0, 1);  // Jan 1 1900
+    const date   = new Date(epoch.getTime() + (adj - 1) * 86400000);
+    const y      = date.getFullYear();
+    const m      = String(date.getMonth() + 1).padStart(2, '0');
+    const d      = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  },
+
+  isExcelSerial(raw) {
+    // Excel serials for years 2000-2035 fall roughly between 36526 and 49672
+    const n = parseInt(String(raw).trim());
+    return !isNaN(n) && n >= 36526 && n <= 50000 && String(raw).trim() === String(n);
+  },
+
   normalizeDate(raw) {
     if (!raw) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const s = String(raw).trim();
+    // Already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Excel serial number — auto-convert
+    if (this.isExcelSerial(s)) return this.excelSerialToDate(s) || s;
+    // M/D/YYYY or MM/DD/YYYY
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-    const m2 = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    // M/D/YY
+    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
     if (m2) return `${2000 + parseInt(m2[3])}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
-    return raw;
+    return s;
   },
 
   showPreview(rows) {
@@ -741,16 +811,19 @@ const Purchases = {
     const validStores  = STORES.map(s => s.toLowerCase());
     const annotated    = rows.map(r => ({
       ...r,
-      _warnSource: r.source && !validSources.includes(r.source.toLowerCase()),
-      _warnStore:  r.store  && !validStores.includes(r.store.toLowerCase()),
+      _warnSource:    r.source && !validSources.includes(r.source.toLowerCase()),
+      _warnStore:     r.store  && !validStores.includes(r.store.toLowerCase()),
+      _warnSerialDate: r._wasSerial || false,
     }));
-    const warnings = annotated.filter(r => r._warnSource || r._warnStore).length;
+    const warnings     = annotated.filter(r => r._warnSource || r._warnStore).length;
+    const serialDates  = annotated.filter(r => r._warnSerialDate).length;
 
     preview.innerHTML = `
       <div class="import-preview-header">
         <div class="import-preview-count">
           <strong>${rows.length}</strong> rows ready
           ${warnings ? `<span class="import-warn-badge">⚠ ${warnings} unrecognized source/store — will import as-is</span>` : ''}
+          ${serialDates ? `<span class="import-warn-badge" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent-mid)">📅 ${serialDates} Excel serial date${serialDates>1?'s':''} auto-converted</span>` : ''}
         </div>
         <button class="btn-import-confirm" id="btn-import-confirm">Import ${rows.length} records →</button>
       </div>
@@ -761,8 +834,8 @@ const Purchases = {
             <th>VIN</th><th>Source</th><th>Store</th><th>Comments</th>
           </tr></thead>
           <tbody>
-            ${annotated.map(r => `<tr class="${r._warnSource || r._warnStore ? 'import-row-warn' : ''}">
-              <td>${r.date || '—'}</td>
+            ${annotated.map(r => `<tr class="${r._warnSource || r._warnStore ? 'import-row-warn' : r._warnSerialDate ? 'import-row-serial' : ''}">
+              <td>${r.date || '—'}${r._warnSerialDate ? ' <span style="font-size:9px;color:var(--accent);font-weight:700">converted</span>' : ''}</td>
               <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || '—'}</td>
               <td>${r.year || '—'}</td>
               <td>${r.make || '—'}</td>
