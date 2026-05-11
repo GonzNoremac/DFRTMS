@@ -1353,3 +1353,35 @@ body {
   font-size: 10px;
   white-space: nowrap;
 }
+
+/* ---- Cost breakdown in detail drawer ---- */
+.cost-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.cost-total-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.cost-total-val {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.cost-arb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.cost-arb-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
