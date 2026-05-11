@@ -1242,13 +1242,20 @@ body {
 .auc-decision.nosale   { background: var(--bg-raised); color: var(--text-3); border: 1px solid var(--border); }
 .auc-decision.pending  { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-mid); }
 .auc-action-btn {
-  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
-  cursor: pointer; font-family: var(--font-sans); transition: all 0.12s; border: 1.5px solid;
+  font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: var(--r-md);
+  cursor: pointer; font-family: var(--font-sans); transition: all 0.12s;
+  border: none; letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: 4px;
 }
-.auc-action-btn.accept { background: var(--green-bg); color: var(--green); border-color: var(--green-mid); }
-.auc-action-btn.accept:hover { background: var(--green); color: #fff; }
-.auc-action-btn.deny   { background: var(--red-bg);   color: var(--red);   border-color: var(--red-mid); }
-.auc-action-btn.deny:hover   { background: var(--red);   color: #fff; }
+.auc-action-btn.accept {
+  background: var(--green); color: #fff;
+  box-shadow: 0 1px 3px rgba(22,163,74,0.3);
+}
+.auc-action-btn.accept:hover { background: #15803d; box-shadow: 0 3px 8px rgba(22,163,74,0.4); }
+.auc-action-btn.deny {
+  background: var(--red); color: #fff;
+  box-shadow: 0 1px 3px rgba(220,38,38,0.3);
+}
+.auc-action-btn.deny:hover { background: #b91c1c; box-shadow: 0 3px 8px rgba(220,38,38,0.4); }
 
 /* History panel */
 .auc-history-card {
@@ -1389,3 +1396,28 @@ body {
 /* Import serial date row highlight */
 .import-row-serial td { background: #eff6ff !important; }
 .import-row-serial:hover td { background: #dbeafe !important; }
+
+/* ---- Auction store breakdown ---- */
+.auc-store-breakdown {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); margin-bottom: 14px; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.auc-breakdown-title {
+  padding: 10px 16px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-3); cursor: pointer;
+  user-select: none; transition: background 0.1s;
+}
+.auc-breakdown-title:hover { background: var(--bg-hover); }
+.auc-breakdown-body { border-top: 1px solid var(--border); }
+.auc-breakdown-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.auc-breakdown-table th {
+  padding: 7px 14px; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-3); background: var(--bg-raised);
+  border-bottom: 1px solid var(--border); text-align: left;
+}
+.auc-breakdown-table td {
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+}
+.auc-breakdown-table tbody tr:last-child td { border-bottom: none; }
+.auc-breakdown-table tbody tr:hover td { background: var(--bg-hover); }
