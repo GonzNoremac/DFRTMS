@@ -8,7 +8,7 @@ import { Toast } from './constants.js';
 const Auction = {
   vautoData: {}, vehicles: [], sessionId: null, sessionLabel: '',
   sessionStatus: 'active', filterStatus: 'all', filterStore: '', wsFilterStore: '', pastSessions: [],
-  wholesaleView: false,
+  wholesaleView: false, lastUpdated: null,
 
   render(container) {
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
@@ -102,6 +102,7 @@ const Auction = {
           <div class="auc-session-meta">
             <span class="auc-pill ${closed ? 'auc-pill-closed' : 'auc-pill-active'}">${closed ? 'Closed' : 'Active'}</span>
             ${hasV ? `${this.vehicles.length} vehicles` : 'No vehicles yet'}
+            ${this.lastUpdated ? `<span style="font-size:11px;color:var(--text-4)">· Updated ${this.lastUpdated}</span>` : ''}
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -486,6 +487,14 @@ const Auction = {
     this.renderSession(document.getElementById('auc-workspace'));
   },
 
+  fmtTimestamp(d) {
+    const pad = n => String(n).padStart(2,'0');
+    const h   = d.getHours(), m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hr   = h % 12 || 12;
+    return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${hr}:${pad(m)} ${ampm}`;
+  },
+
   // ---- Exports -----------------------------------------------
   csvDownload(filename, headers, rows) {
     const escape = v => {
@@ -690,6 +699,7 @@ const Auction = {
 
       this.vehicles = incoming;
       this.enrich();
+      this.lastUpdated = this.fmtTimestamp(new Date());
       this.saveSession();
       Toast.show(`Loaded ${this.vehicles.length} vehicles`, 'success');
       this.renderSession(document.getElementById('auc-workspace'));
@@ -711,9 +721,10 @@ const Auction = {
     if (!this.sessionId) return;
     try {
       await updateDoc(doc(db, 'auction_sessions', this.sessionId), {
-        vehicles:  this.vehicles,
-        status:    this.sessionStatus,
-        wholesale: this.wholesale || [],
+        vehicles:    this.vehicles,
+        status:      this.sessionStatus,
+        wholesale:   this.wholesale || [],
+        lastUpdated: this.lastUpdated || null,
       });
     } catch(e) { console.error('Save error:', e); }
   },
@@ -725,8 +736,9 @@ const Auction = {
       if (this.sessionId) {
         const cur = this.pastSessions.find(s => s.id === this.sessionId);
         if (cur && cur.vehicles?.length && !this.vehicles.length) {
-          this.vehicles   = cur.vehicles;
-          this.wholesale  = cur.wholesale || [];
+          this.vehicles    = cur.vehicles;
+          this.wholesale   = cur.wholesale || [];
+          this.lastUpdated = cur.lastUpdated || null;
           this.sessionStatus = cur.status;
           this.sessionLabel  = cur.label;
         }
@@ -844,6 +856,7 @@ const Auction = {
     this.sessionId = s.id; this.sessionLabel = s.label;
     this.sessionStatus = s.status; this.vehicles = s.vehicles || [];
     this.wholesale = s.wholesale || [];
+    this.lastUpdated = s.lastUpdated || null;
     this.vautoData = {}; this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = ''; this.wholesaleView = false;
     this.closeHistoryModal();
     this.renderSession(document.getElementById('auc-workspace'));

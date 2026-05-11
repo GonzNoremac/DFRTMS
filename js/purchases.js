@@ -114,6 +114,25 @@ const Purchases = {
   },
 
   // ---- Firestore listener ------------------------------------
+  fmtCost(price, transport, fees) {
+    const p = parseFloat(price)    || 0;
+    const t = parseFloat(transport)|| 0;
+    const f = parseFloat(fees)     || 0;
+    if (!p && !t && !f) return '—';
+    return '$' + (p + t + f).toLocaleString();
+  },
+
+  fmtNetCost(price, transport, fees, arbReceived) {
+    const p   = parseFloat(price)        || 0;
+    const t   = parseFloat(transport)    || 0;
+    const f   = parseFloat(fees)         || 0;
+    const arb = parseFloat(arbReceived)  || 0;
+    const total = p + t + f;
+    if (!total) return '—';
+    const net = total - arb;
+    return '$' + net.toLocaleString();
+  },
+
   subscribeFirestore() {
     const q = query(collection(db, 'purchases'), orderBy('date', 'desc'));
     this._unsubscribe = onSnapshot(q,
@@ -331,7 +350,8 @@ const Purchases = {
 
     return `<tr class="detail-row" data-detail-id="${r.id}">
       <td colspan="10">
-        <div class="detail-panel">
+        <div class="detail-panel" style="grid-template-columns:1fr 1fr 1fr">
+          <!-- Col 1: Vehicle details -->
           <div>
             <div class="detail-section-title">Vehicle details</div>
             <div class="detail-fields three" style="margin-bottom:10px">
@@ -375,6 +395,42 @@ const Purchases = {
             </div>
           </div>
 
+          <!-- Col 2: Financials -->
+          <div>
+            <div class="detail-section-title">Cost breakdown</div>
+            <div class="detail-fields one" style="margin-bottom:10px">
+              <div class="detail-field"><label>Purchase price ($)</label>
+                <input type="number" data-field="purchasePrice" value="${r.purchasePrice || ''}"
+                  placeholder="0" style="-moz-appearance:textfield" id="fp-price-${r.id}"></div>
+            </div>
+            <div class="detail-fields one" style="margin-bottom:10px">
+              <div class="detail-field"><label>Transport ($)</label>
+                <input type="number" data-field="transport" value="${r.transport || ''}"
+                  placeholder="0" style="-moz-appearance:textfield" id="fp-transport-${r.id}"></div>
+            </div>
+            <div class="detail-fields one" style="margin-bottom:10px">
+              <div class="detail-field"><label>Fees ($)</label>
+                <input type="number" data-field="fees" value="${r.fees || ''}"
+                  placeholder="0" style="-moz-appearance:textfield" id="fp-fees-${r.id}"></div>
+            </div>
+            <div class="cost-total-row">
+              <span class="cost-total-label">Total cost</span>
+              <span class="cost-total-val" id="fp-total-${r.id}">${Purchases.fmtCost(r.purchasePrice, r.transport, r.fees)}</span>
+            </div>
+            ${hasArb ? `
+            <div class="cost-arb-row" style="margin-top:8px">
+              <span class="cost-total-label" style="color:var(--green)">Arb recovery</span>
+              <span class="cost-arb-val" style="color:var(--green)" id="fp-arbrecovery-${r.id}">
+                ${arb.amountReceived ? '−$' + Number(arb.amountReceived).toLocaleString() : '—'}
+              </span>
+            </div>
+            <div class="cost-total-row" style="border-top:2px solid var(--border);margin-top:4px">
+              <span class="cost-total-label" style="font-size:13px">Net cost</span>
+              <span class="cost-total-val" style="font-size:15px" id="fp-netcost-${r.id}">${Purchases.fmtNetCost(r.purchasePrice, r.transport, r.fees, arb.amountReceived)}</span>
+            </div>` : ''}
+          </div>
+
+          <!-- Col 3: Arbitration -->
           <div>
             <div class="detail-section-title">Arbitration</div>
             <div class="arb-toggle">
@@ -386,11 +442,15 @@ const Purchases = {
               ${hasArb && arb.status ? `<span class="arb-status-badge arb-${arb.status}">${arb.status}</span>` : ''}
             </div>
             <div class="arb-fields${hasArb ? ' visible' : ''}" id="arb-fields-${r.id}">
-              <div class="detail-fields" style="margin-bottom:10px">
+              <div class="detail-fields one" style="margin-bottom:10px">
                 <div class="detail-field"><label>Issue</label>
                   <input type="text" data-arb-field="issue" value="${arb.issue || ''}" placeholder="e.g. Undisclosed engine misfire"></div>
+              </div>
+              <div class="detail-fields" style="margin-bottom:10px">
                 <div class="detail-field"><label>Amount requested ($)</label>
                   <input type="number" data-arb-field="amount" value="${arb.amount || ''}" placeholder="0" style="-moz-appearance:textfield"></div>
+                <div class="detail-field"><label>Amount received ($)</label>
+                  <input type="number" data-arb-field="amountReceived" value="${arb.amountReceived || ''}" placeholder="0" style="-moz-appearance:textfield" id="fp-arbreceived-${r.id}"></div>
               </div>
               <div class="detail-fields" style="margin-bottom:10px">
                 <div class="detail-field"><label>Date filed</label>
@@ -410,9 +470,10 @@ const Purchases = {
             </div>
           </div>
 
-          <div class="detail-actions">
+          <div class="detail-actions" style="grid-column:1/-1">
             <button class="btn-save"   data-save-id="${r.id}">Save changes</button>
             <button class="btn-ghost"  data-close-id="${r.id}">Close</button>
+            <button class="btn-ghost"  data-pdf-id="${r.id}">⎙ Print / PDF</button>
             <button class="btn-delete" data-delete-id="${r.id}">Delete record</button>
           </div>
         </div>
@@ -443,6 +504,29 @@ const Purchases = {
         if (e.target.dataset.field === 'year') val = val ? parseInt(val) : '';
         if (e.target.dataset.field === 'vin')  val = val.toUpperCase();
         pending[e.target.dataset.field] = val;
+        // Recalculate cost totals live
+        if (['purchasePrice','transport','fees'].includes(e.target.dataset.field)) {
+          const price     = document.getElementById(`fp-price-${id}`)?.value;
+          const transport = document.getElementById(`fp-transport-${id}`)?.value;
+          const fees      = document.getElementById(`fp-fees-${id}`)?.value;
+          const arbRec    = document.getElementById(`fp-arbreceived-${id}`)?.value;
+          const totalEl   = document.getElementById(`fp-total-${id}`);
+          const netEl     = document.getElementById(`fp-netcost-${id}`);
+          if (totalEl) totalEl.textContent = Purchases.fmtCost(price, transport, fees);
+          if (netEl)   netEl.textContent   = Purchases.fmtNetCost(price, transport, fees, arbRec);
+        }
+      });
+      el.addEventListener('input', e => {
+        if (['purchasePrice','transport','fees'].includes(e.target.dataset.field)) {
+          const price     = document.getElementById(`fp-price-${id}`)?.value;
+          const transport = document.getElementById(`fp-transport-${id}`)?.value;
+          const fees      = document.getElementById(`fp-fees-${id}`)?.value;
+          const arbRec    = document.getElementById(`fp-arbreceived-${id}`)?.value;
+          const totalEl   = document.getElementById(`fp-total-${id}`);
+          const netEl     = document.getElementById(`fp-netcost-${id}`);
+          if (totalEl) totalEl.textContent = Purchases.fmtCost(price, transport, fees);
+          if (netEl)   netEl.textContent   = Purchases.fmtNetCost(price, transport, fees, arbRec);
+        }
       });
     });
 
@@ -468,11 +552,22 @@ const Purchases = {
       el.addEventListener('change', e => {
         const currentArb = pending.arb !== undefined ? pending.arb : { ...(rec.arb || {}) };
         if (currentArb) {
-          currentArb[e.target.dataset.arbField] =
-            e.target.dataset.arbField === 'amount'
-              ? (parseFloat(e.target.value) || '')
-              : e.target.value;
+          const field = e.target.dataset.arbField;
+          currentArb[field] = ['amount','amountReceived'].includes(field)
+            ? (parseFloat(e.target.value) || '')
+            : e.target.value;
           pending.arb = currentArb;
+          // Recalc net cost when arb received changes
+          if (field === 'amountReceived') {
+            const price     = document.getElementById(`fp-price-${id}`)?.value;
+            const transport = document.getElementById(`fp-transport-${id}`)?.value;
+            const fees      = document.getElementById(`fp-fees-${id}`)?.value;
+            const netEl     = document.getElementById(`fp-netcost-${id}`);
+            const arbRecEl  = document.getElementById(`fp-arbrecovery-${id}`);
+            const val       = parseFloat(e.target.value) || 0;
+            if (netEl)    netEl.textContent    = Purchases.fmtNetCost(price, transport, fees, val);
+            if (arbRecEl) arbRecEl.textContent = val ? '−$' + val.toLocaleString() : '—';
+          }
         }
       });
     });
@@ -484,6 +579,12 @@ const Purchases = {
     document.querySelector(`[data-close-id="${id}"]`)?.addEventListener('click', () => {
       this.expandedId = null;
       this.renderRows();
+    });
+    document.querySelector(`[data-pdf-id="${id}"]`)?.addEventListener('click', () => {
+      // Merge pending changes into rec for PDF so unsaved edits show up
+      const merged = { ...rec, ...pending };
+      if (pending.arb !== undefined) merged.arb = pending.arb;
+      this.printPDF(merged);
     });
     document.querySelector(`[data-delete-id="${id}"]`)?.addEventListener('click', () => {
       this.deleteRecord(id);
@@ -736,3 +837,103 @@ const Purchases = {
 export default Purchases;
 
 function today() { return new Date().toISOString().slice(0, 10); }
+
+// ---- PDF generation (print-to-PDF via browser) ---------------------------------
+Purchases.printPDF = function(r) {
+  const arb   = r.arb || {};
+  const price = parseFloat(r.purchasePrice) || 0;
+  const trans = parseFloat(r.transport)     || 0;
+  const fees  = parseFloat(r.fees)          || 0;
+  const total = price + trans + fees;
+  const arbRec= parseFloat(arb.amountReceived) || 0;
+  const net   = total - arbRec;
+  const fmt   = n => n ? '$' + Number(n).toLocaleString() : '—';
+  const hasArb = r.arb !== null && r.arb !== undefined;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Purchase Order — ${r.stock || ''}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; padding: 40px; max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #666; margin-bottom: 28px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #888; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+  .field label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+  .field p { font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .cost-table { width: 100%; border-collapse: collapse; }
+  .cost-table td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+  .cost-table td:last-child { text-align: right; font-family: monospace; }
+  .cost-table .total-row td { font-weight: 700; border-top: 2px solid #111; border-bottom: none; font-size: 14px; }
+  .cost-table .net-row td { font-weight: 700; color: #1d4ed8; border-bottom: none; font-size: 15px; }
+  .cost-table .arb-row td { color: #16a34a; }
+  .notes { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px;
+    font-size: 13px; color: #444; min-height: 48px; }
+  .vin { font-family: monospace; font-size: 12px; letter-spacing: 0.05em; }
+  @media print {
+    body { padding: 20px; }
+    button { display: none; }
+  }
+</style>
+</head>
+<body>
+  <h1>Purchase Order</h1>
+  <div class="subtitle">Generated ${new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</div>
+
+  <div class="section">
+    <div class="section-title">Vehicle information</div>
+    <div class="grid">
+      <div class="field"><label>Stock #</label><p>${r.stock || '—'}</p></div>
+      <div class="field"><label>Date purchased</label><p>${r.date || '—'}</p></div>
+      <div class="field"><label>Year</label><p>${r.year || '—'}</p></div>
+      <div class="field"><label>Source</label><p>${r.source || '—'}</p></div>
+      <div class="field"><label>Make</label><p>${r.make || '—'}</p></div>
+      <div class="field"><label>Store</label><p>${r.store || '—'}</p></div>
+      <div class="field"><label>Model</label><p>${r.model || '—'}</p></div>
+      <div class="field"><label>Buyer</label><p>${r.buyer || '—'}</p></div>
+      <div class="field" style="grid-column:1/-1"><label>VIN</label><p class="vin">${r.vin || '—'}</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Cost breakdown</div>
+    <table class="cost-table">
+      <tr><td>Purchase price</td><td>${fmt(r.purchasePrice)}</td></tr>
+      <tr><td>Transport</td><td>${fmt(r.transport)}</td></tr>
+      <tr><td>Fees</td><td>${fmt(r.fees)}</td></tr>
+      <tr class="total-row"><td>Total cost</td><td>${total ? fmt(total) : '—'}</td></tr>
+      ${hasArb && arbRec ? `<tr class="arb-row"><td>Arb recovery (received)</td><td>−${fmt(arbRec)}</td></tr>
+      <tr class="net-row"><td>Net cost</td><td>${fmt(net)}</td></tr>` : ''}
+    </table>
+  </div>
+
+  ${hasArb ? `<div class="section">
+    <div class="section-title">Arbitration</div>
+    <div class="grid">
+      <div class="field"><label>Issue</label><p>${arb.issue || '—'}</p></div>
+      <div class="field"><label>Status</label><p>${arb.status || '—'}</p></div>
+      <div class="field"><label>Amount requested</label><p>${fmt(arb.amount)}</p></div>
+      <div class="field"><label>Amount received</label><p>${fmt(arb.amountReceived)}</p></div>
+      <div class="field"><label>Date filed</label><p>${arb.dateFiled || '—'}</p></div>
+      <div class="field"><label>Resolution</label><p>${arb.resolution || '—'}</p></div>
+    </div>
+  </div>` : ''}
+
+  ${r.notes ? `<div class="section">
+    <div class="section-title">Notes</div>
+    <div class="notes">${r.notes}</div>
+  </div>` : ''}
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=800,height=900');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+};
