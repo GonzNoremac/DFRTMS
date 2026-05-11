@@ -128,7 +128,36 @@ const Auction = {
         <div class="auc-stat auc-stat-blue">          <div class="auc-stat-val">${s.accepted}</div>   <div class="auc-stat-label">Accepted</div></div>
         <div class="auc-stat auc-stat-red">           <div class="auc-stat-val">${s.denied}</div>     <div class="auc-stat-label">Denied</div></div>
         <div class="auc-stat">                        <div class="auc-stat-val">${s.nosale}</div>     <div class="auc-stat-label">No sale</div></div>
+        ${s.soldProfit !== null ? `<div class="auc-stat ${s.soldProfit >= 0 ? 'auc-stat-green' : 'auc-stat-red'}" style="grid-column:span 2">
+          <div class="auc-stat-val" style="font-size:18px">${(s.soldProfit>=0?'+$':'-$')+Math.abs(s.soldProfit).toLocaleString()}</div>
+          <div class="auc-stat-label">Profit on ${s.soldCount} sold unit${s.soldCount!==1?'s':''}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- Store breakdown -->
+      ${this.calcStoreBreakdown().length > 1 ? `
+      <div class="auc-store-breakdown">
+        <div class="auc-breakdown-title" onclick="this.parentElement.querySelector('.auc-breakdown-body').classList.toggle('hidden')">
+          By store <span style="font-size:11px;color:var(--text-3);font-weight:400;margin-left:4px">▾ toggle</span>
+        </div>
+        <div class="auc-breakdown-body hidden">
+          <table class="auc-breakdown-table">
+            <thead><tr><th>Store</th><th>Total</th><th>Sold</th><th>Unsold</th><th>Profit (sold units)</th></tr></thead>
+            <tbody>
+              ${this.calcStoreBreakdown().map(row => `<tr>
+                <td style="font-weight:500">${row.store}</td>
+                <td style="font-family:var(--font-mono)">${row.total}</td>
+                <td style="font-family:var(--font-mono);color:var(--green)">${row.sold}</td>
+                <td style="font-family:var(--font-mono);color:var(--text-3)">${row.unsold}</td>
+                <td style="font-family:var(--font-mono);font-weight:600;color:${row.profit===null?'var(--text-3)':row.profit>=0?'var(--green)':'var(--red)'}">
+                  ${row.profit!==null?(row.profit>=0?'+$':'-$')+Math.abs(row.profit).toLocaleString():'—'}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>` : ''}
+      ` : ''}
 
       ${!closed ? `
       <div class="auc-uploads">
@@ -240,6 +269,15 @@ const Auction = {
 
   calcStats() {
     const v = this.vehicles;
+    // Profit on sold vehicles (auto + accepted)
+    const sold   = v.filter(r => r.decision === 'auto' || r.decision === 'accepted');
+    const unsold = v.filter(r => r.decision !== 'auto' && r.decision !== 'accepted');
+    let soldProfit = null, soldCount = 0;
+    sold.forEach(r => {
+      const bid = parseFloat(r.maxBid) || 0;
+      const cost = parseFloat(r.cost)  || 0;
+      if (bid > 0 && cost > 0) { soldProfit = (soldProfit || 0) + (bid - cost); soldCount++; }
+    });
     return {
       total:    v.length,
       auto:     v.filter(r => r.decision === 'auto').length,
@@ -247,7 +285,26 @@ const Auction = {
       accepted: v.filter(r => r.decision === 'accepted').length,
       denied:   v.filter(r => r.decision === 'denied').length,
       nosale:   v.filter(r => r.decision === 'nosale').length,
+      soldProfit, soldCount,
+      soldVehicles: sold,
+      unsoldVehicles: unsold,
     };
+  },
+
+  calcStoreBreakdown() {
+    const fmt = n => n !== null ? (n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString() : '—';
+    const stores = [...new Set(this.vehicles.map(v => v.store).filter(Boolean))].sort();
+    return stores.map(store => {
+      const sv = this.vehicles.filter(v => v.store === store);
+      const sold   = sv.filter(v => v.decision === 'auto' || v.decision === 'accepted');
+      const unsold = sv.filter(v => v.decision !== 'auto' && v.decision !== 'accepted');
+      let profit = null;
+      sold.forEach(v => {
+        const bid = parseFloat(v.maxBid)||0, cost = parseFloat(v.cost)||0;
+        if (bid > 0 && cost > 0) profit = (profit||0) + (bid - cost);
+      });
+      return { store, total: sv.length, sold: sold.length, unsold: unsold.length, profit };
+    });
   },
 
   renderTable(closed) {
@@ -735,12 +792,17 @@ const Auction = {
       this.pastSessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       if (this.sessionId) {
         const cur = this.pastSessions.find(s => s.id === this.sessionId);
-        if (cur && cur.vehicles?.length && !this.vehicles.length) {
-          this.vehicles    = cur.vehicles;
-          this.wholesale   = cur.wholesale || [];
+        if (cur) {
+          // Always sync latest data from Firestore so live bid updates propagate
+          const wasEmpty = !this.vehicles.length;
+          this.vehicles    = cur.vehicles    || [];
+          this.wholesale   = cur.wholesale   || [];
           this.lastUpdated = cur.lastUpdated || null;
           this.sessionStatus = cur.status;
           this.sessionLabel  = cur.label;
+          // Re-render if we already have the workspace open
+          const ws = document.getElementById('auc-workspace');
+          if (ws && !wasEmpty) this.renderSession(ws);
         }
       }
       this.renderHistoryPanel();
