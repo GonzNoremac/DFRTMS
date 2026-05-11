@@ -1385,3 +1385,7 @@ body {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* Import serial date row highlight */
+.import-row-serial td { background: #eff6ff !important; }
+.import-row-serial:hover td { background: #dbeafe !important; }
