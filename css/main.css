@@ -1143,13 +1143,16 @@ body {
 .auc-setup-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .auc-field-group { display: flex; flex-direction: column; gap: 5px; }
 .auc-field-group label { font-size: 11px; font-weight: 500; color: var(--text-2); }
-.auc-field-group input {
+.auc-field-group input,
+.auc-field-group select {
   background: var(--bg-raised); border: 1.5px solid var(--border);
   border-radius: var(--r-md); padding: 8px 10px; font-size: 13px;
   font-family: var(--font-sans); color: var(--text-1); outline: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  width: 100%; transition: border-color 0.12s, box-shadow 0.12s;
 }
-.auc-field-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+.auc-field-group input:focus,
+.auc-field-group select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+.auc-field-group select option { background: var(--bg-surface); }
 
 /* Session header */
 .auc-session-header {
@@ -1282,9 +1285,13 @@ body {
 .auc-modal-overlay.hidden { display: none; }
 .auc-modal {
   background: var(--bg-surface); border: 1px solid var(--border-med);
-  border-radius: var(--r-lg); width: 520px; max-width: calc(100vw - 32px);
-  max-height: 80vh; display: flex; flex-direction: column;
+  border-radius: var(--r-lg); width: 640px; max-width: calc(100vw - 32px);
+  max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.auc-modal-body {
+  padding: 20px;
+  overflow-y: auto;
 }
 .auc-modal-header {
   display: flex; align-items: center; justify-content: space-between;
