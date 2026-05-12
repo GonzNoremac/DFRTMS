@@ -106,12 +106,11 @@ const Auction = {
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          ${closed ? `
-            <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
-            <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Online listings${(this.wholesale||[]).length>0?` <span class='auc-tab-count'>${(this.wholesale||[]).length}</span>`:''}</button>
-            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
-          ` : `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
-            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>`}
+          <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
+          <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Online listings${this.vehicles.filter(v=>v.goOnline).length>0?` <span class='auc-tab-count'>${this.vehicles.filter(v=>v.goOnline).length}</span>`:''}</button>
+          <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
+          ${!closed ? `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
+            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>` : ''}
           ${hasV ? `
             <button class="auc-btn-secondary" onclick="Auction.exportManagerReview()">↓ Manager review</button>
             <button class="auc-btn-secondary" onclick="Auction.exportTitleClerk()">↓ Title clerk</button>
@@ -161,7 +160,6 @@ const Auction = {
       </div>` : ''}
       ` : ''}
 
-      ${!closed ? `
       <div class="auc-uploads">
         <div class="auc-upload-card">
           <div class="auc-upload-icon">📊</div>
@@ -181,9 +179,9 @@ const Auction = {
             <input type="file" id="extract-file" accept=".xlsx,.csv" style="display:none">
           </label>
         </div>
-      </div>` : ''}
+      </div>
 
-      ${closed && this.wholesaleView
+      ${this.wholesaleView
         ? this.renderWholesale()
         : hasV ? `
       <div class="auc-filter-bar">
@@ -201,15 +199,13 @@ const Auction = {
       ${this.renderTable(closed)}` : ''}
     `;
 
-    if (!closed) {
-      document.getElementById('vauto-file')?.addEventListener('change', e => {
-        if (e.target.files[0]) this.loadFile(e.target.files[0], 'vauto');
-      });
-      document.getElementById('extract-file')?.addEventListener('change', e => {
-        if (e.target.files[0]) this.loadFile(e.target.files[0], 'extract');
-      });
-      document.getElementById('auc-close-btn')?.addEventListener('click', () => this.closeSession());
-    }
+    document.getElementById('vauto-file')?.addEventListener('change', e => {
+      if (e.target.files[0]) this.loadFile(e.target.files[0], 'vauto');
+    });
+    document.getElementById('extract-file')?.addEventListener('change', e => {
+      if (e.target.files[0]) this.loadFile(e.target.files[0], 'extract');
+    });
+    document.getElementById('auc-close-btn')?.addEventListener('click', () => this.closeSession());
 
     // Delegated listeners for auction table buttons
     const aucTable = container.querySelector('.auc-table tbody');
@@ -222,9 +218,10 @@ const Auction = {
         const filtered = this.getFiltered();
         const rec      = filtered[idx];
         if (!rec) return;
-        if (action === 'accept') this.setDecision(rec.stock, 'accepted');
-        if (action === 'deny')   this.setDecision(rec.stock, 'denied');
-        if (action === 'delete') this.deleteVehicle(rec.stock);
+        if (action === 'accept')       this.setDecision(rec.stock, 'accepted');
+        if (action === 'deny')         this.setDecision(rec.stock, 'denied');
+        if (action === 'delete')       this.deleteVehicle(rec.stock);
+        if (action === 'toggleOnline') this.toggleOnline(rec.stock, btn.checked);
         if (action === 'sell') {
           const platform = btn.dataset.platform;
           const val      = parseFloat(btn.dataset.val);
@@ -308,7 +305,7 @@ const Auction = {
     });
   },
 
-  renderTable(closed) {
+  renderTable() {
     const rows = this.getFiltered().map((r,i) => ({...r, _idx: i}));
     if (!rows.length) return `<div class="auc-empty" style="margin-top:12px"><div class="auc-empty-sub">No vehicles match this filter.</div></div>`;
     return `
@@ -317,14 +314,14 @@ const Auction = {
           <thead><tr>
             <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Reserve</th>
             <th>Bid</th><th>Cost / Book / MMR</th>
-            <th>Profit</th><th>Reserve</th><th>Status</th><th></th>
+            <th>Profit</th><th>Reserve</th><th>Status</th><th>Online</th><th></th>
           </tr></thead>
-          <tbody>${rows.map(r => this.rowHTML(r, closed)).join('')}</tbody>
+          <tbody>${rows.map(r => this.rowHTML(r)).join('')}</tbody>
         </table>
       </div>`;
   },
 
-  rowHTML(r, closed) {
+  rowHTML(r) {
     const bid     = parseFloat(r.maxBid)  || 0;
     const reserve = parseFloat(r.reserve) || 0;
     const cost    = parseFloat(r.cost)    || 0;
@@ -345,16 +342,16 @@ const Auction = {
     let statusText, actions;
     if (isSold) {
       statusText = `<span style="color:var(--green);font-weight:600;font-size:12px">Sold</span>`;
-      actions    = closed ? '' : `<span class="auc-link deny" data-action="deny" data-stock="${r._idx}">[Deny]</span>`;
+      actions    = `<span class="auc-link deny" data-action="deny" data-stock="${r._idx}">[Deny]</span>`;
     } else if (r.decision === 'denied') {
       statusText = `<span style="color:var(--red);font-weight:600;font-size:12px">Denied</span>`;
-      actions    = closed ? '' : `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>`;
+      actions    = `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>`;
     } else if (r.decision === 'nosale') {
       statusText = `<span style="color:var(--amber);font-weight:600;font-size:12px">No sale</span>`;
-      actions    = closed ? '' : `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>`;
+      actions    = `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>`;
     } else if (r.decision === 'pending') {
       statusText = `<span style="color:var(--amber);font-weight:500;font-size:12px">Pending</span>`;
-      actions    = closed ? '' : bid > 0
+      actions    = bid > 0
         ? `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>
            <span class="auc-link deny"   data-action="deny"   data-stock="${r._idx}">[Deny]</span>`
         : '';
@@ -391,6 +388,12 @@ const Auction = {
         <div>${statusText}</div>
         <div style="display:flex;gap:6px;margin-top:2px">${actions}</div>
       </td>
+      <td style="text-align:center">
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text-2)">
+          <input type="checkbox" class="auc-online-chk" data-action="toggleOnline" data-stock="${r._idx}" ${r.goOnline?'checked':''}>
+          Online
+        </label>
+      </td>
       <td><span class="auc-delete-row" data-action="delete" data-stock="${r._idx}" title="Remove vehicle">✕</span></td>
     </tr>`;
   },
@@ -402,6 +405,18 @@ const Auction = {
     this.saveSession();
     this.renderSession(document.getElementById('auc-workspace'));
     Toast.show(`${stock} — ${decision}`, 'success');
+  },
+
+  toggleOnline(stock, checked) {
+    const v = this.vehicles.find(r => r.stock === stock);
+    if (!v) return;
+    v.goOnline = checked;
+    this.saveSession();
+    // No full re-render needed — just update the tab count
+    const tab = document.querySelector('.auc-tab-btn:last-of-type');
+    const count = this.vehicles.filter(v => v.goOnline).length;
+    // Update Online listings tab count if visible
+    this.renderSession(document.getElementById('auc-workspace'));
   },
 
   deleteVehicle(stock) {
@@ -470,7 +485,7 @@ const Auction = {
       reserve: parseFloat(document.getElementById('av-reserve').value) || 0,
       cost:    parseFloat(document.getElementById('av-cost').value)    || null,
       book:    parseFloat(document.getElementById('av-book').value)    || null,
-      mmr:     null, maxBid: 0, bidBy: '', decision: 'pending',
+      mmr:     null, maxBid: 0, bidBy: '', decision: 'nosale', goOnline: false,
     });
     this.saveSession();
     this.closeHistoryModal();
@@ -480,10 +495,10 @@ const Auction = {
 
   // ---- Online listings ------------------------------------
   renderWholesale() {
-    const list = this.wholesale || [];
+    const list = this.vehicles.filter(v => v.goOnline);
     if (!list.length) return `
       <div class="auc-empty" style="margin-top:12px">
-        <div class="auc-empty-sub">No unsold vehicles — nothing to list online.</div>
+        <div class="auc-empty-sub">No vehicles marked for online listing yet. Check the Online column on vehicles you want to list.</div>
       </div>`;
 
     const active = list.filter(v => v.status !== 'sold');
@@ -706,10 +721,8 @@ const Auction = {
 
   // Export 3: Online listings — everything that did NOT sell
   exportOnlineListings() {
-    const unsold = this.vehicles.filter(v =>
-      v.decision === 'denied' || v.decision === 'nosale' || v.decision === 'pending'
-    );
-    if (!unsold.length) { Toast.show('No unsold vehicles to export', 'error'); return; }
+    const unsold = this.vehicles.filter(v => v.goOnline);
+    if (!unsold.length) { Toast.show('No vehicles marked for online listing', 'error'); return; }
     const fmt  = n => n ? '$' + Number(n).toLocaleString() : '';
     const date = this.sessionLabel.replace(/[^a-z0-9]/gi,'_');
     this.csvDownload(`${date}_online_listings.csv`,
@@ -840,6 +853,7 @@ const Auction = {
           book: prev?.book || null, cost: prev?.cost || null,
           mmr:  prev?.mmr  || null, kbb:  prev?.kbb  || null,
           decision,
+          goOnline: prev?.goOnline || false,
         });
       }
 
@@ -899,41 +913,10 @@ const Auction = {
   },
 
   async closeSession() {
-    if (!confirm('Close this auction? You can still view results but no further edits.')) return;
+    if (!confirm('Mark this auction as closed?')) return;
     this.sessionStatus = 'closed';
-
-    // Carry over everything that was not accepted (denied, no sale, still pending)
-    const unsold = this.vehicles.filter(v =>
-      v.decision !== 'auto' && v.decision !== 'accepted'
-    );
-    // Merge with existing wholesale entries so we don't overwrite existing bids
-    const existingMap = {};
-    (this.wholesale || []).forEach(w => { existingMap[w.stock] = w; });
-    this.wholesale = unsold.map(v => existingMap[v.stock] || {
-      stock:      v.stock,
-      store:      v.store,
-      auctionBid: v.maxBid || null,
-      year:    v.year,
-      make:    v.make,
-      model:   v.model,
-      color:   v.color,
-      vin:     v.vin,
-      miles:   v.miles,
-      book:    v.book,
-      mmr:     v.mmr,
-      cost:    v.cost,
-      reserve: v.reserve,
-      openlane: null,
-      acv:      null,
-      manheim:  null,
-      status:   'active',  // active | sold
-      soldOn:   null,
-      soldPrice: null,
-    });
-
     await this.saveSession();
-    Toast.show('Auction closed', 'success');
-    this.wholesaleView = false;
+    Toast.show('Auction marked as closed', 'success');
     this.renderSession(document.getElementById('auc-workspace'));
   },
 
