@@ -7,7 +7,7 @@ import { Toast } from './constants.js';
 
 const Auction = {
   vautoData: {}, vehicles: [], sessionId: null, sessionLabel: '',
-  sessionStatus: 'active', filterStatus: 'all', filterStore: '', wsFilterStore: '', pastSessions: [],
+  filterStatus: 'all', filterStore: '', wsFilterStore: '', pastSessions: [],
   wholesaleView: false, lastUpdated: null, selectedRows: new Set(),
 
   render(container) {
@@ -17,17 +17,13 @@ const Auction = {
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
           <div class="page-title">Auction</div>
-          <div class="page-sub">Upload extracts, track live bids, accept or deny at close.</div>
+          <div class="page-sub">Upload extracts, track live bids, archive when complete.</div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="auc-btn-secondary" id="auc-history-btn">📋 Past sessions</button>
-          <button class="auc-btn-primary"   id="auc-new-btn">+ New session</button>
-        </div>
+        <button class="auc-btn-primary" id="auc-new-btn">+ New auction</button>
       </div>
       <div id="auc-workspace"></div>
     `;
     document.getElementById('auc-new-btn').addEventListener('click', () => this.showNewSession());
-    document.getElementById('auc-history-btn').addEventListener('click', () => this.openHistoryModal());
     this.subscribeSessions();
     this.showWorkspace();
   },
@@ -78,10 +74,10 @@ const Auction = {
     btn.textContent = 'Creating…'; btn.disabled = true;
     try {
       const ref = await addDoc(collection(db, 'auction_sessions'), {
-        date, label, status: 'active', vehicles: [], createdAt: new Date().toISOString(),
+        date, label, vehicles: [], createdAt: new Date().toISOString(),
       });
       this.sessionId = ref.id; this.sessionLabel = label;
-      this.sessionStatus = 'active'; this.vehicles = []; this.vautoData = {};
+      this.vehicles = []; this.vautoData = {};
       this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = '';
       Toast.show('Session created', 'success');
       this.renderSession(document.getElementById('auc-workspace'));
@@ -95,8 +91,6 @@ const Auction = {
     if (!container) return;
     const hasV     = this.vehicles.length > 0;
     const hasVauto = Object.keys(this.vautoData).length > 0;
-    const closed   = this.sessionStatus === 'closed';
-    const archived = this.sessionStatus === 'archived';
     const s        = this.calcStats();
 
     container.innerHTML = `
@@ -118,12 +112,7 @@ const Auction = {
           <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
           <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Online listings${this.vehicles.filter(v=>v.goOnline).length>0?` <span class='auc-tab-count'>${this.vehicles.filter(v=>v.goOnline).length}</span>`:''}</button>
           <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
-          ${archived ? '' : closed ? `
-            <button class="auc-btn-secondary" id="auc-reopen-btn">Re-open</button>
-            <button class="auc-btn-primary"   id="auc-archive-btn">Archive session</button>
-          ` : `
-            <button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
-          `}
+          <button class="auc-btn-secondary" id="auc-archive-btn">Archive session</button>
           ${hasV ? `
             <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
             <button class="auc-btn-secondary" onclick="Auction.exportManagerReview()">↓ Manager review</button>
@@ -211,7 +200,7 @@ const Auction = {
         <span style="font-size:12px;color:var(--text-3);margin-left:auto">${this.getFiltered().length} of ${this.vehicles.length}</span>
         <button class="auc-filter-btn" onclick="Auction.openAddVehicleModal()">+ Add</button>
       </div>
-      ${this.renderTable(closed)}` : ''}
+      ${this.renderTable()}` : ''}
     `;
 
     document.getElementById('vauto-file')?.addEventListener('change', e => {
@@ -220,8 +209,6 @@ const Auction = {
     document.getElementById('extract-file')?.addEventListener('change', e => {
       if (e.target.files[0]) this.loadFile(e.target.files[0], 'extract');
     });
-    document.getElementById('auc-close-btn')?.addEventListener('click', () => this.closeSession());
-    document.getElementById('auc-reopen-btn')?.addEventListener('click', () => this.reopenSession());
     document.getElementById('auc-archive-btn')?.addEventListener('click', () => this.archiveSession());
     document.getElementById('auc-rename-btn')?.addEventListener('click', () => this.renameSession());
     document.getElementById('auc-select-all')?.addEventListener('change', e => {
@@ -526,14 +513,14 @@ const Auction = {
       overlay = document.createElement('div');
       overlay.id = 'auc-modal-overlay';
       overlay.className = 'auc-modal-overlay';
-      overlay.addEventListener('click', e => { if (e.target === overlay) this.closeHistoryModal(); });
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.add('hidden'); });
       document.body.appendChild(overlay);
     }
     overlay.innerHTML = `
       <div class="auc-modal">
         <div class="auc-modal-header">
           <div class="auc-modal-title">Add vehicle manually</div>
-          <button class="auc-modal-close" onclick="Auction.closeHistoryModal()">✕</button>
+          <button class="auc-modal-close" onclick="document.getElementById('auc-modal-overlay').classList.add('hidden')">✕</button>
         </div>
         <div class="auc-modal-body">
           <div class="auc-setup-fields" style="grid-template-columns:1fr 1fr;gap:12px">
@@ -550,7 +537,7 @@ const Auction = {
           </div>
           <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
             <button class="auc-btn-primary" id="av-save-btn">Add vehicle</button>
-            <button class="auc-btn-secondary" onclick="Auction.closeHistoryModal()">Cancel</button>
+            <button class="auc-btn-secondary" onclick="document.getElementById('auc-modal-overlay').classList.add('hidden')">Cancel</button>
           </div>
         </div>
       </div>`;
@@ -578,7 +565,7 @@ const Auction = {
       mmr:     null, maxBid: 0, bidBy: '', decision: 'nosale', goOnline: false, onlineListing: null,
     });
     this.saveSession();
-    this.closeHistoryModal();
+    document.getElementById('auc-modal-overlay')?.classList.add('hidden');
     this.renderSession(document.getElementById('auc-workspace'));
     Toast.show(`${stock} added`, 'success');
   },
@@ -986,7 +973,6 @@ const Auction = {
     try {
       await updateDoc(doc(db, 'auction_sessions', this.sessionId), {
         vehicles:    this.vehicles,
-        status:      this.sessionStatus,
         wholesale:   this.wholesale || [],
         lastUpdated: this.lastUpdated || null,
       });
@@ -997,30 +983,32 @@ const Auction = {
     const q = collection(db, 'auction_sessions');
     this._unsubscribe = onSnapshot(q, snapshot => {
       this.pastSessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
       if (this.sessionId) {
+        // Sync live updates for the current session
         const cur = this.pastSessions.find(s => s.id === this.sessionId);
         if (cur) {
-          // Always sync latest data from Firestore so live bid updates propagate
           const wasEmpty = !this.vehicles.length;
           this.vehicles    = cur.vehicles    || [];
           this.wholesale   = cur.wholesale   || [];
           this.lastUpdated = cur.lastUpdated || null;
-          this.sessionStatus = cur.status;
-          this.sessionLabel  = cur.label;
-          // Re-render if we already have the workspace open
+          this.sessionLabel = cur.label;
           const ws = document.getElementById('auc-workspace');
           if (ws && !wasEmpty) this.renderSession(ws);
         }
+      } else {
+        // Auto-load the active session if one exists
+        const active = this.pastSessions.find(s => s.id);
+        if (active) {
+          this.sessionId    = active.id;
+          this.sessionLabel = active.label;
+          this.vehicles     = active.vehicles  || [];
+          this.wholesale    = active.wholesale || [];
+          this.lastUpdated  = active.lastUpdated || null;
+          this.showWorkspace();
+        }
       }
-      this.renderHistoryPanel();
     }, err => console.error('Listener error:', err));
-  },
-
-  async reopenSession() {
-    this.sessionStatus = 'active';
-    await this.saveSession();
-    Toast.show('Auction re-opened', 'success');
-    this.renderSession(document.getElementById('auc-workspace'));
   },
 
   async archiveSession() {
@@ -1109,7 +1097,6 @@ const Auction = {
       this.vehicles      = [];
       this.wholesale     = [];
       this.vautoData     = {};
-      this.sessionStatus = 'active';
       this.wholesaleView = false;
       this.selectedRows  = new Set();
 
@@ -1130,102 +1117,9 @@ const Auction = {
     await updateDoc(doc(db, 'auction_sessions', this.sessionId), { label: this.sessionLabel });
     Toast.show('Renamed', 'success');
     this.renderSession(document.getElementById('auc-workspace'));
-    this.renderHistoryPanel();
   },
 
-  async closeSession() {
-    if (!confirm('Mark this auction as closed?')) return;
-    this.sessionStatus = 'closed';
-    await this.saveSession();
-    Toast.show('Auction marked as closed', 'success');
-    this.renderSession(document.getElementById('auc-workspace'));
-  },
 
-  openHistoryModal() {
-    // Create modal overlay
-    let overlay = document.getElementById('auc-modal-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'auc-modal-overlay';
-      overlay.className = 'auc-modal-overlay';
-      overlay.addEventListener('click', e => {
-        if (e.target === overlay) this.closeHistoryModal();
-      });
-      document.body.appendChild(overlay);
-    }
-    overlay.innerHTML = `
-      <div class="auc-modal">
-        <div class="auc-modal-header">
-          <div class="auc-modal-title">Past auction sessions</div>
-          <button class="auc-modal-close" onclick="Auction.closeHistoryModal()">✕</button>
-        </div>
-        <div class="auc-modal-body" id="auc-modal-body">
-          ${!this.pastSessions.length
-            ? `<div class="auc-empty" style="padding:40px 20px"><div class="auc-empty-sub">No past sessions yet.</div></div>`
-            : this.pastSessions.map(s => `
-              <div class="auc-history-row">
-                <div onclick="Auction.loadSession('${s.id}')" style="flex:1;cursor:pointer;min-width:0">
-                  <div class="auc-history-label">${s.label}</div>
-                  <div class="auc-history-meta">${s.date} · ${(s.vehicles||[]).length} vehicles</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                  <span class="auc-pill ${s.status==='archived'?'auc-pill-archived':s.status==='closed'?'auc-pill-closed':'auc-pill-active'}">${s.status}</span>
-                  <button class="auc-action-btn deny" onclick="Auction.deleteSession('${s.id}')">Delete</button>
-                </div>
-              </div>`).join('')}
-        </div>
-      </div>`;
-    overlay.classList.remove('hidden');
-  },
-
-  closeHistoryModal() {
-    const el = document.getElementById('auc-modal-overlay');
-    if (el) el.classList.add('hidden');
-  },
-
-  renderHistoryPanel() {
-    // No-op — history is now a modal, not inline
-  },
-
-  async deleteSession(id) {
-    const s = this.pastSessions.find(x => x.id === id);
-    if (!s) return;
-    if (!confirm(`Delete "${s.label}"? This cannot be undone.`)) return;
-    try {
-      await deleteDoc(doc(db, 'auction_sessions', id));
-      // If currently viewing this session, clear it
-      if (this.sessionId === id) {
-        this.sessionId = null; this.sessionLabel = ''; this.vehicles = [];
-        this.sessionStatus = 'active'; this.vautoData = {};
-      }
-      Toast.show('Session deleted');
-      this.openHistoryModal(); // refresh modal
-    } catch(e) {
-      console.error(e); Toast.show('Delete failed', 'error');
-    }
-  },
-
-  loadSession(id) {
-    const s = this.pastSessions.find(x => x.id === id);
-    if (!s) return;
-    this.sessionId     = s.id;
-    this.sessionLabel  = s.label;
-    this.sessionStatus = s.status;
-    this.vehicles      = s.vehicles    || [];
-    this.wholesale     = s.wholesale   || [];
-    this.lastUpdated   = s.lastUpdated || null;
-    this.onlineListings = null;
-    this.vautoData     = {};
-    this.filterStatus  = 'all';
-    this.filterStore   = '';
-    this.wsFilterStore = '';
-    this.wholesaleView = false;
-    this.selectedRows  = new Set();
-    this.closeHistoryModal();
-    // showWorkspace ensures #auc-workspace exists in the DOM before rendering
-    this.showWorkspace();
-    Toast.show(`Loaded: ${s.label}`);
-  },
 };
 
 export default Auction;
