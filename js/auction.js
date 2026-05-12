@@ -8,7 +8,7 @@ import { Toast } from './constants.js';
 const Auction = {
   vautoData: {}, vehicles: [], sessionId: null, sessionLabel: '',
   sessionStatus: 'active', filterStatus: 'all', filterStore: '', wsFilterStore: '', pastSessions: [],
-  wholesaleView: false, lastUpdated: null,
+  wholesaleView: false, lastUpdated: null, selectedRows: new Set(),
 
   render(container) {
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
@@ -97,21 +97,28 @@ const Auction = {
 
     container.innerHTML = `
       <div class="auc-session-header">
-        <div>
-          <div class="auc-session-label">${this.sessionLabel}</div>
-          <div class="auc-session-meta">
-            <span class="auc-pill ${closed ? 'auc-pill-closed' : 'auc-pill-active'}">${closed ? 'Closed' : 'Active'}</span>
-            ${hasV ? `${this.vehicles.length} vehicles` : 'No vehicles yet'}
-            ${this.lastUpdated ? `<span style="font-size:11px;color:var(--text-4)">· Updated ${this.lastUpdated}</span>` : ''}
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="auc-session-label" id="auc-session-label-text">${this.sessionLabel}</div>
+              <button class="auc-link-btn" id="auc-rename-btn" title="Rename session">✎</button>
+            </div>
+            <div class="auc-session-meta">
+              <span class="auc-pill ${closed ? 'auc-pill-closed' : 'auc-pill-active'}">${closed ? 'Closed' : 'Active'}</span>
+              ${hasV ? `${this.vehicles.length} vehicles` : 'No vehicles yet'}
+              ${this.lastUpdated ? `<span style="font-size:11px;color:var(--text-4)">· Updated ${this.lastUpdated}</span>` : ''}
+            </div>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
           <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Online listings${this.vehicles.filter(v=>v.goOnline).length>0?` <span class='auc-tab-count'>${this.vehicles.filter(v=>v.goOnline).length}</span>`:''}</button>
           <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
-          ${!closed ? `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
-            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>` : ''}
+          ${closed
+            ? `<button class="auc-btn-secondary" id="auc-reopen-btn">Re-open auction</button>`
+            : `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>`}
           ${hasV ? `
+            <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
             <button class="auc-btn-secondary" onclick="Auction.exportManagerReview()">↓ Manager review</button>
             <button class="auc-btn-secondary" onclick="Auction.exportTitleClerk()">↓ Title clerk</button>
             <button class="auc-btn-secondary" onclick="Auction.exportOnlineListings()">↓ Online listings</button>
@@ -160,41 +167,42 @@ const Auction = {
       </div>` : ''}
       ` : ''}
 
-      <div class="auc-uploads">
-        <div class="auc-upload-card">
-          <div class="auc-upload-icon">📊</div>
-          <div class="auc-upload-title">Vauto Wholesale extract</div>
-          <div class="auc-upload-sub">Upload once — provides Book, Cost, MMR</div>
-          <label class="auc-btn-secondary" style="cursor:pointer">
-            ${hasVauto ? '✓ Loaded — re-upload to refresh' : 'Choose file'}
-            <input type="file" id="vauto-file" accept=".xlsx,.csv" style="display:none">
-          </label>
-        </div>
-        <div class="auc-upload-card">
-          <div class="auc-upload-icon">🏷️</div>
-          <div class="auc-upload-title">Auction extract</div>
-          <div class="auc-upload-sub">Upload anytime to refresh bids and status</div>
-          <label class="auc-btn-secondary" style="cursor:pointer">
-            ${hasV ? '↺ Re-upload to refresh' : 'Choose file'}
-            <input type="file" id="extract-file" accept=".xlsx,.csv" style="display:none">
-          </label>
-        </div>
-      </div>
+
 
       ${this.wholesaleView
         ? this.renderWholesale()
         : hasV ? `
+      <!-- Selection action bar — appears when rows selected -->
+      <div class="auc-action-bar${this.selectedRows.size > 0 ? ' visible' : ''}" id="auc-action-bar">
+        <span class="auc-action-bar-count">${this.selectedRows.size} selected</span>
+        <span style="color:var(--border);font-size:16px">|</span>
+        <span style="font-size:12px;font-weight:500;color:var(--text-2)">Action:</span>
+        <button class="auc-filter-btn" id="action-send-online">Send to Online</button>
+        <button class="auc-filter-btn" id="action-remove-online">Remove from Online</button>
+        <button class="auc-filter-btn" style="margin-left:4px;color:var(--text-3)" id="action-clear-sel">Clear selection</button>
+      </div>
+
       <div class="auc-filter-bar">
+        <input type="checkbox" id="auc-select-all" class="auc-chk" title="Select all visible"
+          ${this.selectedRows.size > 0 && this.selectedRows.size === this.getFiltered().length ? 'checked' : ''}>
         ${['all','sold','unsold','nosale'].map(f => `
           <button class="auc-filter-btn${this.filterStatus===f?' active':''}" onclick="Auction.setFilter('${f}')">
             ${{all:'All',sold:'Sold',unsold:'Unsold',nosale:'No sale'}[f]}
           </button>`).join('')}
-        <button class="auc-filter-btn" onclick="Auction.openAddVehicleModal()" style="margin-left:auto">+ Add vehicle</button>
         <select class="auc-store-select" onchange="Auction.filterStore=this.value;Auction.renderSession(document.getElementById('auc-workspace'))">
           <option value="">All stores</option>
           ${this.getStores(this.vehicles).map(s => `<option value="${s}" ${this.filterStore===s?'selected':''}>${s}</option>`).join('')}
         </select>
-        <span style="font-size:12px;color:var(--text-3)">${this.getFiltered().length} of ${this.vehicles.length}</span>
+        <label class="auc-upload-btn" title="${hasVauto?'Vauto loaded':'Upload Vauto'}">
+          📊 ${hasVauto?'Vauto ✓':'Vauto'}
+          <input type="file" id="vauto-file" accept=".xlsx,.csv" style="display:none">
+        </label>
+        <label class="auc-upload-btn" title="Upload auction extract">
+          🏷️ Extract
+          <input type="file" id="extract-file" accept=".xlsx,.csv" style="display:none">
+        </label>
+        <span style="font-size:12px;color:var(--text-3);margin-left:auto">${this.getFiltered().length} of ${this.vehicles.length}</span>
+        <button class="auc-filter-btn" onclick="Auction.openAddVehicleModal()">+ Add</button>
       </div>
       ${this.renderTable(closed)}` : ''}
     `;
@@ -206,6 +214,32 @@ const Auction = {
       if (e.target.files[0]) this.loadFile(e.target.files[0], 'extract');
     });
     document.getElementById('auc-close-btn')?.addEventListener('click', () => this.closeSession());
+    document.getElementById('auc-reopen-btn')?.addEventListener('click', () => this.reopenSession());
+    document.getElementById('auc-rename-btn')?.addEventListener('click', () => this.renameSession());
+    document.getElementById('auc-select-all')?.addEventListener('change', e => {
+      const filtered = this.getFiltered();
+      if (e.target.checked) filtered.forEach(r => this.selectedRows.add(r.stock));
+      else this.selectedRows.clear();
+      this.renderSession(document.getElementById('auc-workspace'));
+    });
+    document.getElementById('action-send-online')?.addEventListener('click', () => {
+      this.vehicles.filter(v => this.selectedRows.has(v.stock)).forEach(v => { v.goOnline = true; });
+      this.selectedRows.clear();
+      this.saveSession();
+      this.renderSession(document.getElementById('auc-workspace'));
+      Toast.show('Sent to Online listings', 'success');
+    });
+    document.getElementById('action-remove-online')?.addEventListener('click', () => {
+      this.vehicles.filter(v => this.selectedRows.has(v.stock)).forEach(v => { v.goOnline = false; });
+      this.selectedRows.clear();
+      this.saveSession();
+      this.renderSession(document.getElementById('auc-workspace'));
+      Toast.show('Removed from Online listings');
+    });
+    document.getElementById('action-clear-sel')?.addEventListener('click', () => {
+      this.selectedRows.clear();
+      this.renderSession(document.getElementById('auc-workspace'));
+    });
 
     // Delegated listeners for auction table buttons
     const aucTable = container.querySelector('.auc-table tbody');
@@ -218,10 +252,19 @@ const Auction = {
         const filtered = this.getFiltered();
         const rec      = filtered[idx];
         if (!rec) return;
-        if (action === 'accept')       this.setDecision(rec.stock, 'accepted');
-        if (action === 'deny')         this.setDecision(rec.stock, 'denied');
-        if (action === 'delete')       this.deleteVehicle(rec.stock);
-        if (action === 'toggleOnline') this.toggleOnline(rec.stock, btn.checked);
+        if (action === 'accept')    this.setDecision(rec.stock, 'accepted');
+        if (action === 'deny')      this.setDecision(rec.stock, 'denied');
+        if (action === 'delete')    this.deleteVehicle(rec.stock);
+        if (action === 'selectRow') {
+          if (btn.checked) this.selectedRows.add(rec.stock);
+          else             this.selectedRows.delete(rec.stock);
+          // Update action bar without full re-render
+          const bar = document.getElementById('auc-action-bar');
+          const cnt = document.querySelector('.auc-action-bar-count');
+          if (bar) bar.classList.toggle('visible', this.selectedRows.size > 0);
+          if (cnt) cnt.textContent = this.selectedRows.size + ' selected';
+          return; // skip full re-render for perf
+        }
         if (action === 'sell') {
           const platform = btn.dataset.platform;
           const val      = parseFloat(btn.dataset.val);
@@ -312,9 +355,9 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Reserve</th>
+            <th style='width:32px'></th><th>Stock #</th><th>Vehicle</th><th>Store</th><th>Reserve</th>
             <th>Bid</th><th>Cost / Book / MMR</th>
-            <th>Profit</th><th>Reserve</th><th>Status</th><th>Online</th><th></th>
+            <th>Profit</th><th>Reserve</th><th>Status</th><th style='width:24px'></th><th style='width:24px'></th>
           </tr></thead>
           <tbody>${rows.map(r => this.rowHTML(r)).join('')}</tbody>
         </table>
@@ -368,6 +411,9 @@ const Auction = {
         : `<span style="color:var(--text-4);font-size:11px">—</span>`;
 
     return `<tr class="auc-row" style="border-left:3px solid ${borderColor}">
+      <td style="padding:10px 8px 10px 12px">
+        <input type="checkbox" class="auc-chk auc-row-chk" data-action="selectRow" data-stock="${r._idx}" ${this.selectedRows.has(r.stock)?'checked':''}>
+      </td>
       <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock}</td>
       <td><div style="font-weight:500">${r.year} ${r.make} ${r.model}</div>
           <div style="font-size:11px;color:var(--text-3)">${r.color||''}</div></td>
@@ -389,10 +435,7 @@ const Auction = {
         <div style="display:flex;gap:6px;margin-top:2px">${actions}</div>
       </td>
       <td style="text-align:center">
-        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text-2)">
-          <input type="checkbox" class="auc-online-chk" data-action="toggleOnline" data-stock="${r._idx}" ${r.goOnline?'checked':''}>
-          Online
-        </label>
+        ${r.goOnline ? '<span class="auc-online-dot" title="Flagged for online listing">●</span>' : ''}
       </td>
       <td><span class="auc-delete-row" data-action="delete" data-stock="${r._idx}" title="Remove vehicle">✕</span></td>
     </tr>`;
@@ -912,6 +955,24 @@ const Auction = {
     }, err => console.error('Listener error:', err));
   },
 
+  async reopenSession() {
+    this.sessionStatus = 'active';
+    await this.saveSession();
+    Toast.show('Auction re-opened', 'success');
+    this.renderSession(document.getElementById('auc-workspace'));
+  },
+
+  async renameSession() {
+    const current = this.sessionLabel;
+    const newName = prompt('Rename auction session:', current);
+    if (!newName || newName.trim() === current) return;
+    this.sessionLabel = newName.trim();
+    await updateDoc(doc(db, 'auction_sessions', this.sessionId), { label: this.sessionLabel });
+    Toast.show('Renamed', 'success');
+    this.renderSession(document.getElementById('auc-workspace'));
+    this.renderHistoryPanel();
+  },
+
   async closeSession() {
     if (!confirm('Mark this auction as closed?')) return;
     this.sessionStatus = 'closed';
@@ -991,7 +1052,7 @@ const Auction = {
     this.sessionStatus = s.status; this.vehicles = s.vehicles || [];
     this.wholesale = s.wholesale || [];
     this.lastUpdated = s.lastUpdated || null;
-    this.vautoData = {}; this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = ''; this.wholesaleView = false;
+    this.vautoData = {}; this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = ''; this.wholesaleView = false; this.selectedRows = new Set();
     this.closeHistoryModal();
     this.renderSession(document.getElementById('auc-workspace'));
     Toast.show(`Loaded: ${s.label}`);
