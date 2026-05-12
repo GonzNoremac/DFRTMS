@@ -117,7 +117,7 @@ const Auction = {
               <button class="auc-link-btn" id="auc-rename-btn" title="Rename session">✎</button>
             </div>
             <div class="auc-session-meta">
-              <span class="auc-pill ${archived ? 'auc-pill-archived' : closed ? 'auc-pill-closed' : 'auc-pill-active'}">${archived ? 'Archived' : closed ? 'Closed' : 'Active'}</span>
+              <span class="auc-pill auc-pill-active">Active</span>
               ${hasV ? `${this.vehicles.length} vehicles` : 'No vehicles yet'}
               ${this.lastUpdated ? `<span style="font-size:11px;color:var(--text-4)">· Updated ${this.lastUpdated}</span>` : ''}
             </div>
