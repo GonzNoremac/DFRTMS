@@ -13,38 +13,53 @@ const Auction = {
   render(container) {
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
     window.Auction = this;
+    this.container = container;
+
     container.innerHTML = `
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
           <div class="page-title">Auction</div>
           <div class="page-sub">Upload extracts, track live bids, archive when complete.</div>
         </div>
-        <button class="auc-btn-primary" id="auc-new-btn">+ New auction</button>
+        <div id="auc-header-btn"></div>
       </div>
-      <div id="auc-workspace"></div>
+      <div id="auc-workspace"><div style="padding:40px;text-align:center;color:var(--text-4)">Loading…</div></div>
     `;
-    document.getElementById('auc-new-btn').addEventListener('click', () => this.showNewSession());
+
+    // NOTE: do NOT reset sessionId here — it persists from previous navigation
+    // subscribeSessions will immediately fire and set correct state
+    this.vautoData    = {};
+    this.selectedRows = new Set();
+
     this.subscribeSessions();
-    this.showWorkspace();
   },
 
+
   showWorkspace() {
-    const ws = document.getElementById('auc-workspace');
+    const ws  = document.getElementById('auc-workspace');
+    const btn = document.getElementById('auc-header-btn');
     if (!ws) return;
+
     if (this.sessionId) {
+      if (btn) btn.innerHTML = '';  // Archive btn is inside renderSession header
       this.renderSession(ws);
-      return;
+    } else {
+      if (btn) btn.innerHTML = `<button class="auc-btn-primary" onclick="Auction.showNewSession()">+ New auction</button>`;
+      ws.innerHTML = `
+        <div class="auc-empty">
+          <div class="auc-empty-icon">🏷️</div>
+          <div class="auc-empty-title">No active auction</div>
+          <div class="auc-empty-sub">Start a new auction session to begin uploading and tracking bids.</div>
+          <button class="auc-btn-primary" onclick="Auction.showNewSession()">+ New auction</button>
+        </div>`;
     }
-    ws.innerHTML = `
-      <div class="auc-empty">
-        <div class="auc-empty-icon">🏷️</div>
-        <div class="auc-empty-title">No active session</div>
-        <div class="auc-empty-sub">Create a new session to start uploading and tracking bids.</div>
-        <button class="auc-btn-primary" onclick="Auction.showNewSession()">+ New auction session</button>
-      </div>`;
   },
 
   showNewSession() {
+    if (this.sessionId) {
+      Toast.show('An active auction already exists — archive it first', 'error');
+      return;
+    }
     const ws = document.getElementById('auc-workspace');
     ws.innerHTML = `
       <div class="auc-setup-card">
@@ -80,7 +95,7 @@ const Auction = {
       this.vehicles = []; this.vautoData = {};
       this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = '';
       Toast.show('Session created', 'success');
-      this.renderSession(document.getElementById('auc-workspace'));
+      // subscribeSessions will pick up the new session automatically
     } catch(e) {
       console.error(e); Toast.show('Failed to create session', 'error');
       btn.textContent = 'Create session'; btn.disabled = false;
@@ -984,33 +999,30 @@ const Auction = {
     this._unsubscribe = onSnapshot(q, snapshot => {
       this.pastSessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      if (this.sessionId) {
-        // Sync live updates for the current session
-        const cur = this.pastSessions.find(s => s.id === this.sessionId);
-        if (cur) {
-          const wasEmpty = !this.vehicles.length;
-          this.vehicles    = cur.vehicles    || [];
-          this.wholesale   = cur.wholesale   || [];
-          this.lastUpdated = cur.lastUpdated || null;
-          this.sessionLabel = cur.label;
-          const ws = document.getElementById('auc-workspace');
-          if (ws && !wasEmpty) this.renderSession(ws);
-        }
+      // Find the one active (non-archived) session
+      const active = this.pastSessions.find(s => s.status !== 'archived');
+
+      if (active) {
+        this.sessionId    = active.id;
+        this.sessionLabel = active.label;
+        this.vehicles     = active.vehicles   || [];
+        this.wholesale    = active.wholesale  || [];
+        this.lastUpdated  = active.lastUpdated || null;
       } else {
-        // Auto-load the most recent non-archived session if one exists
-        const active = this.pastSessions.find(s => s.status !== 'archived');
-        if (active) {
-          this.sessionId    = active.id;
-          this.sessionLabel = active.label;
-          this.vehicles     = active.vehicles  || [];
-          this.wholesale    = active.wholesale || [];
-          this.lastUpdated  = active.lastUpdated || null;
-          // Force render directly — don't rely on DOM state check
-          const ws = document.getElementById('auc-workspace');
-          if (ws) this.renderSession(ws);
-        }
+        this.sessionId    = null;
+        this.sessionLabel = '';
+        this.vehicles     = [];
+        this.wholesale    = [];
+        this.lastUpdated  = null;
       }
-    }, err => console.error('Listener error:', err));
+
+      // Always update the workspace with current state
+      this.showWorkspace();
+
+    }, err => {
+      console.error('Listener error:', err);
+      Toast.show('Could not load auction data', 'error');
+    });
   },
 
   async archiveSession() {
@@ -1093,17 +1105,12 @@ const Auction = {
       // Delete the live session
       await deleteDoc(doc(db, 'auction_sessions', this.sessionId));
 
-      // Clear local state
-      this.sessionId     = null;
-      this.sessionLabel  = '';
-      this.vehicles      = [];
-      this.wholesale     = [];
       this.vautoData     = {};
       this.wholesaleView = false;
       this.selectedRows  = new Set();
 
       Toast.show('Session archived', 'success');
-      this.showWorkspace();
+      // subscribeSessions will clear state and show empty workspace automatically
     } catch(e) {
       console.error('Archive error:', e);
       Toast.show('Archive failed — check connection', 'error');
