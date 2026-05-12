@@ -121,17 +121,19 @@ const Auction = {
       </div>
 
       ${hasV ? `
-      <div class="auc-stats">
-        <div class="auc-stat">                        <div class="auc-stat-val">${s.total}</div>      <div class="auc-stat-label">Total</div></div>
-        <div class="auc-stat auc-stat-green">         <div class="auc-stat-val">${s.auto}</div>       <div class="auc-stat-label">Auto accepted</div></div>
-        <div class="auc-stat auc-stat-amber">         <div class="auc-stat-val">${s.pending}</div>    <div class="auc-stat-label">Pending</div></div>
-        <div class="auc-stat auc-stat-blue">          <div class="auc-stat-val">${s.accepted}</div>   <div class="auc-stat-label">Accepted</div></div>
-        <div class="auc-stat auc-stat-red">           <div class="auc-stat-val">${s.denied}</div>     <div class="auc-stat-label">Denied</div></div>
-        <div class="auc-stat">                        <div class="auc-stat-val">${s.nosale}</div>     <div class="auc-stat-label">No sale</div></div>
-        ${s.soldProfit !== null ? `<div class="auc-stat ${s.soldProfit >= 0 ? 'auc-stat-green' : 'auc-stat-red'}" style="grid-column:span 2">
-          <div class="auc-stat-val" style="font-size:18px">${(s.soldProfit>=0?'+$':'-$')+Math.abs(s.soldProfit).toLocaleString()}</div>
-          <div class="auc-stat-label">Profit on ${s.soldCount} sold unit${s.soldCount!==1?'s':''}</div>
-        </div>` : ''}
+      <div class="auc-stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="auc-stat auc-stat-green">
+          <div class="auc-stat-val">${s.auto + s.accepted}</div>
+          <div class="auc-stat-label">Sold</div>
+        </div>
+        <div class="auc-stat">
+          <div class="auc-stat-val">${s.pending + s.denied + s.nosale}</div>
+          <div class="auc-stat-label">Unsold</div>
+        </div>
+        <div class="auc-stat ${s.soldProfit === null ? '' : s.soldProfit >= 0 ? 'auc-stat-green' : 'auc-stat-red'}">
+          <div class="auc-stat-val" style="font-size:20px">${s.soldProfit !== null ? (s.soldProfit>=0?'+$':'-$')+Math.abs(s.soldProfit).toLocaleString() : '—'}</div>
+          <div class="auc-stat-label">Profit on sold</div>
+        </div>
       </div>
 
       <!-- Store breakdown -->
@@ -185,15 +187,16 @@ const Auction = {
         ? this.renderWholesale()
         : hasV ? `
       <div class="auc-filter-bar">
-        ${['all','auto','pending','accepted','denied','nosale'].map(f => `
+        ${['all','sold','unsold','nosale'].map(f => `
           <button class="auc-filter-btn${this.filterStatus===f?' active':''}" onclick="Auction.setFilter('${f}')">
-            ${{all:'All',auto:'Auto accepted',pending:'Pending',accepted:'Accepted',denied:'Denied',nosale:'No sale'}[f]}
+            ${{all:'All',sold:'Sold',unsold:'Unsold',nosale:'No sale'}[f]}
           </button>`).join('')}
+        <button class="auc-filter-btn" onclick="Auction.openAddVehicleModal()" style="margin-left:auto">+ Add vehicle</button>
         <select class="auc-store-select" onchange="Auction.filterStore=this.value;Auction.renderSession(document.getElementById('auc-workspace'))">
           <option value="">All stores</option>
           ${this.getStores(this.vehicles).map(s => `<option value="${s}" ${this.filterStore===s?'selected':''}>${s}</option>`).join('')}
         </select>
-        <span style="margin-left:auto;font-size:12px;color:var(--text-3)">${this.getFiltered().length} of ${this.vehicles.length}</span>
+        <span style="font-size:12px;color:var(--text-3)">${this.getFiltered().length} of ${this.vehicles.length}</span>
       </div>
       ${this.renderTable(closed)}` : ''}
     `;
@@ -212,7 +215,7 @@ const Auction = {
     const aucTable = container.querySelector('.auc-table tbody');
     if (aucTable) {
       aucTable.addEventListener('click', e => {
-        const btn = e.target.closest('[data-action]');
+        const btn = e.target.closest('[data-action]') || e.target.closest('.auc-delete-row');
         if (!btn) return;
         const action   = btn.dataset.action;
         const idx      = parseInt(btn.dataset.stock);
@@ -221,6 +224,7 @@ const Auction = {
         if (!rec) return;
         if (action === 'accept') this.setDecision(rec.stock, 'accepted');
         if (action === 'deny')   this.setDecision(rec.stock, 'denied');
+        if (action === 'delete') this.deleteVehicle(rec.stock);
         if (action === 'sell') {
           const platform = btn.dataset.platform;
           const val      = parseFloat(btn.dataset.val);
@@ -256,13 +260,10 @@ const Auction = {
 
   getFiltered() {
     const v = this.vehicles, f = this.filterStatus;
-    let result = f === 'all' ? v
-      : f === 'auto'     ? v.filter(r => r.decision === 'auto')
-      : f === 'pending'  ? v.filter(r => r.decision === 'pending')
-      : f === 'accepted' ? v.filter(r => r.decision === 'accepted')
-      : f === 'denied'   ? v.filter(r => r.decision === 'denied')
-      : f === 'nosale'   ? v.filter(r => r.decision === 'nosale')
-      : v;
+    let result = f === 'sold'   ? v.filter(r => r.decision === 'auto' || r.decision === 'accepted')
+               : f === 'unsold' ? v.filter(r => r.decision !== 'auto' && r.decision !== 'accepted' && r.decision !== 'nosale')
+               : f === 'nosale' ? v.filter(r => r.decision === 'nosale')
+               : v;
     if (this.filterStore) result = result.filter(r => r.store === this.filterStore);
     return result;
   },
@@ -315,8 +316,8 @@ const Auction = {
         <table class="auc-table">
           <thead><tr>
             <th>Stock #</th><th>Vehicle</th><th>Store</th><th>Reserve</th>
-            <th>Max Bid</th><th>Bid By</th><th>Cost / Book / MMR</th>
-            <th>Profit</th><th>Status</th><th>Decision</th>
+            <th>Bid</th><th>Cost / Book / MMR</th>
+            <th>Profit</th><th>Reserve</th><th>Status</th><th></th>
           </tr></thead>
           <tbody>${rows.map(r => this.rowHTML(r, closed)).join('')}</tbody>
         </table>
@@ -331,52 +332,66 @@ const Auction = {
     const hitRes  = bid > 0 && reserve > 0 && bid >= reserve;
     const pc      = profit === null ? 'var(--text-3)' : profit >= 0 ? 'var(--green)' : 'var(--red)';
     const fmt     = n => '$' + Number(n).toLocaleString();
+    const isSold  = r.decision === 'auto' || r.decision === 'accepted';
 
-    const resBadge = hitRes
-      ? `<span class="auc-res-badge hit">Hit reserve</span>`
-      : bid > 0 ? `<span class="auc-res-badge miss">Below reserve</span>`
-      : `<span class="auc-res-badge nosale">No bid</span>`;
+    // Left border color by status
+    const borderColor = isSold                    ? 'var(--green)'
+                      : r.decision === 'denied'   ? 'var(--red)'
+                      : r.decision === 'nosale'   ? 'var(--amber)'
+                      : r.decision === 'pending'  ? 'var(--amber)'
+                      : 'transparent';
 
-    let decision;
-    if (r.decision === 'auto') {
-      decision = `<span class="auc-decision auto">Auto accepted</span>`;
-    } else if (closed) {
-      if (r.decision === 'accepted') decision = `<span class="auc-decision accepted">Accepted</span>`;
-      else if (r.decision === 'denied') decision = `<span class="auc-decision denied">Denied</span>`;
-      else if (r.decision === 'nosale') decision = `<span class="auc-decision nosale">No sale</span>`;
-      else decision = `<span style="color:var(--text-4);font-size:11px">—</span>`;
-    } else if (r.decision === 'accepted') {
-      decision = `<span class="auc-decision accepted">Accepted</span>
-        <button class="auc-action-btn deny" data-action="deny" data-stock="${r._idx}">Deny</button>`;
+    // Status text — sold/denied/nosale/pending, no pill
+    let statusText, actions;
+    if (isSold) {
+      statusText = `<span style="color:var(--green);font-weight:600;font-size:12px">Sold</span>`;
+      actions    = closed ? '' : `<span class="auc-link deny" data-action="deny" data-stock="${r._idx}">[Deny]</span>`;
     } else if (r.decision === 'denied') {
-      decision = `<span class="auc-decision denied">Denied</span>
-        <button class="auc-action-btn accept" data-action="accept" data-stock="${r._idx}">Accept</button>`;
+      statusText = `<span style="color:var(--red);font-weight:600;font-size:12px">Denied</span>`;
+      actions    = closed ? '' : `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>`;
     } else if (r.decision === 'nosale') {
-      decision = `<span class="auc-decision nosale">No sale</span>
-        <button class="auc-action-btn accept" data-action="accept" data-stock="${r._idx}">Accept manually</button>`;
+      statusText = `<span style="color:var(--amber);font-weight:600;font-size:12px">No sale</span>`;
+      actions    = closed ? '' : `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>`;
+    } else if (r.decision === 'pending') {
+      statusText = `<span style="color:var(--amber);font-weight:500;font-size:12px">Pending</span>`;
+      actions    = closed ? '' : bid > 0
+        ? `<span class="auc-link accept" data-action="accept" data-stock="${r._idx}">[Accept]</span>
+           <span class="auc-link deny"   data-action="deny"   data-stock="${r._idx}">[Deny]</span>`
+        : '';
     } else {
-      decision = bid > 0
-        ? `<button class="auc-action-btn accept" data-action="accept" data-stock="${r._idx}">Accept</button>
-           <button class="auc-action-btn deny"   data-action="deny"   data-stock="${r._idx}">Deny</button>`
-        : `<span style="color:var(--text-4);font-size:11px">No bid</span>`;
+      statusText = `<span style="color:var(--text-4);font-size:11px">—</span>`;
+      actions = '';
     }
 
-    return `<tr class="auc-row auc-row-${r.decision}">
+    // Reserve status — text only, no badge
+    const resText = hitRes
+      ? `<span style="color:var(--green);font-size:11px">✓ Hit</span>`
+      : bid > 0
+        ? `<span style="color:var(--amber);font-size:11px">Below</span>`
+        : `<span style="color:var(--text-4);font-size:11px">—</span>`;
+
+    return `<tr class="auc-row" style="border-left:3px solid ${borderColor}">
       <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock}</td>
       <td><div style="font-weight:500">${r.year} ${r.make} ${r.model}</div>
           <div style="font-size:11px;color:var(--text-3)">${r.color||''}</div></td>
       <td style="font-size:11px;color:var(--text-2)">${r.store||'—'}</td>
       <td style="font-family:var(--font-mono);font-size:11px">${reserve > 0 ? fmt(reserve) : '—'}</td>
-      <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${bid>0?'var(--text-1)':'var(--text-3)'}">${bid>0?fmt(bid):'No bid'}</td>
-      <td style="font-size:12px">${r.bidBy||'—'}</td>
+      <td>
+        <div style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${bid>0?'var(--text-1)':'var(--text-3)'}">${bid>0?fmt(bid):'No bid'}</div>
+        ${r.bidBy ? `<div style="font-size:11px;color:var(--text-3)">${r.bidBy}</div>` : ''}
+      </td>
       <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
         <span style="color:var(--text-2);font-weight:600">${r.cost?fmt(r.cost):'—'}</span><br>
         <span style="color:var(--text-3);font-size:10px">${r.book?fmt(r.book):'—'}</span><br>
         <span style="color:var(--text-3);font-size:10px">${r.mmr ?fmt(r.mmr) :'—'}</span>
       </td>
       <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${pc}">${profit!==null?(profit>=0?'+':'')+fmt(profit):'—'}</td>
-      <td>${resBadge}</td>
-      <td><div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">${decision}</div></td>
+      <td>${resText}</td>
+      <td>
+        <div>${statusText}</div>
+        <div style="display:flex;gap:6px;margin-top:2px">${actions}</div>
+      </td>
+      <td><span class="auc-delete-row" data-action="delete" data-stock="${r._idx}" title="Remove vehicle">✕</span></td>
     </tr>`;
   },
 
@@ -387,6 +402,80 @@ const Auction = {
     this.saveSession();
     this.renderSession(document.getElementById('auc-workspace'));
     Toast.show(`${stock} — ${decision}`, 'success');
+  },
+
+  deleteVehicle(stock) {
+    if (!confirm(`Remove ${stock} from this session?`)) return;
+    this.vehicles = this.vehicles.filter(v => v.stock !== stock);
+    this.saveSession();
+    this.renderSession(document.getElementById('auc-workspace'));
+    Toast.show(`${stock} removed`);
+  },
+
+  openAddVehicleModal() {
+    const stores = this.getStores(this.vehicles);
+    const storeOpts = (stores.length ? stores : ['Chevrolet','Chrysler','Ford BHC','Ford Kingman','Honda','Nissan','Toyota'])
+      .map(s => `<option>${s}</option>`).join('');
+    let overlay = document.getElementById('auc-modal-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'auc-modal-overlay';
+      overlay.className = 'auc-modal-overlay';
+      overlay.addEventListener('click', e => { if (e.target === overlay) this.closeHistoryModal(); });
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="auc-modal">
+        <div class="auc-modal-header">
+          <div class="auc-modal-title">Add vehicle manually</div>
+          <button class="auc-modal-close" onclick="Auction.closeHistoryModal()">✕</button>
+        </div>
+        <div class="auc-modal-body">
+          <div class="auc-setup-fields" style="grid-template-columns:1fr 1fr;gap:12px">
+            <div class="auc-field-group"><label>Stock #</label><input type="text" id="av-stock" placeholder="e.g. Z3490"></div>
+            <div class="auc-field-group"><label>Store</label><select id="av-store"><option value="">— Store —</option>${storeOpts}</select></div>
+            <div class="auc-field-group"><label>Year</label><input type="number" id="av-year" placeholder="${new Date().getFullYear()}" style="-moz-appearance:textfield"></div>
+            <div class="auc-field-group"><label>Make</label><input type="text" id="av-make" placeholder="Toyota"></div>
+            <div class="auc-field-group"><label>Model</label><input type="text" id="av-model" placeholder="Tacoma"></div>
+            <div class="auc-field-group"><label>Color</label><input type="text" id="av-color" placeholder="Silver"></div>
+            <div class="auc-field-group"><label>VIN</label><input type="text" id="av-vin" placeholder="17-char VIN" maxlength="17" style="text-transform:uppercase"></div>
+            <div class="auc-field-group"><label>Reserve ($)</label><input type="number" id="av-reserve" placeholder="0" style="-moz-appearance:textfield"></div>
+            <div class="auc-field-group"><label>Cost ($)</label><input type="number" id="av-cost" placeholder="0" style="-moz-appearance:textfield"></div>
+            <div class="auc-field-group"><label>Book ($)</label><input type="number" id="av-book" placeholder="0" style="-moz-appearance:textfield"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+            <button class="auc-btn-primary" id="av-save-btn">Add vehicle</button>
+            <button class="auc-btn-secondary" onclick="Auction.closeHistoryModal()">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+    overlay.classList.remove('hidden');
+    document.getElementById('av-save-btn').addEventListener('click', () => this.saveAddVehicle());
+  },
+
+  saveAddVehicle() {
+    const stock = document.getElementById('av-stock').value.trim();
+    const store = document.getElementById('av-store').value;
+    if (!stock) { Toast.show('Stock # required', 'error'); return; }
+    if (!store) { Toast.show('Select a store', 'error'); return; }
+    if (this.vehicles.find(v => v.stock === stock)) { Toast.show(`${stock} already exists in this session`, 'error'); return; }
+    this.vehicles.push({
+      stock,
+      store,
+      year:    parseInt(document.getElementById('av-year').value)    || '',
+      make:    document.getElementById('av-make').value.trim(),
+      model:   document.getElementById('av-model').value.trim(),
+      color:   document.getElementById('av-color').value.trim(),
+      vin:     document.getElementById('av-vin').value.trim().toUpperCase(),
+      reserve: parseFloat(document.getElementById('av-reserve').value) || 0,
+      cost:    parseFloat(document.getElementById('av-cost').value)    || null,
+      book:    parseFloat(document.getElementById('av-book').value)    || null,
+      mmr:     null, maxBid: 0, bidBy: '', decision: 'pending',
+    });
+    this.saveSession();
+    this.closeHistoryModal();
+    this.renderSession(document.getElementById('auc-workspace'));
+    Toast.show(`${stock} added`, 'success');
   },
 
   // ---- Online listings ------------------------------------
