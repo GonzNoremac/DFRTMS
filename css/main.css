@@ -1221,12 +1221,12 @@ body {
 .auc-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .auc-table tbody tr:last-child td { border-bottom: none; }
 .auc-row:hover td { background: var(--bg-hover); }
-.auc-row-auto     td { background: #f0fdf4; }
-.auc-row-accepted td { background: #eff6ff; }
-.auc-row-denied   td { background: #fef9f9; }
-.auc-row-auto:hover td     { background: #dcfce7; }
-.auc-row-accepted:hover td { background: #dbeafe; }
-.auc-row-denied:hover td   { background: #fee2e2; }
+.auc-row-auto     td { background: #bbf7d0; }
+.auc-row-accepted td { background: #bbf7d0; }
+.auc-row-denied   td { background: #fecaca; }
+.auc-row-auto:hover td     { background: #86efac; }
+.auc-row-accepted:hover td { background: #86efac; }
+.auc-row-denied:hover td   { background: #fca5a5; }
 
 /* Reserve badges */
 .auc-res-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
