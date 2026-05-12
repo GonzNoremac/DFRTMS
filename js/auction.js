@@ -35,7 +35,10 @@ const Auction = {
   showWorkspace() {
     const ws = document.getElementById('auc-workspace');
     if (!ws) return;
-    if (this.sessionId) { this.renderSession(ws); return; }
+    if (this.sessionId) {
+      this.renderSession(ws);
+      return;
+    }
     ws.innerHTML = `
       <div class="auc-empty">
         <div class="auc-empty-icon">🏷️</div>
@@ -93,6 +96,7 @@ const Auction = {
     const hasV     = this.vehicles.length > 0;
     const hasVauto = Object.keys(this.vautoData).length > 0;
     const closed   = this.sessionStatus === 'closed';
+    const archived = this.sessionStatus === 'archived';
     const s        = this.calcStats();
 
     container.innerHTML = `
@@ -1204,13 +1208,22 @@ const Auction = {
   loadSession(id) {
     const s = this.pastSessions.find(x => x.id === id);
     if (!s) return;
-    this.sessionId = s.id; this.sessionLabel = s.label;
-    this.sessionStatus = s.status; this.vehicles = s.vehicles || [];
-    this.wholesale = s.wholesale || [];
-    this.lastUpdated = s.lastUpdated || null;
-    this.vautoData = {}; this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = ''; this.wholesaleView = false; this.selectedRows = new Set();
+    this.sessionId     = s.id;
+    this.sessionLabel  = s.label;
+    this.sessionStatus = s.status;
+    this.vehicles      = s.vehicles    || [];
+    this.wholesale     = s.wholesale   || [];
+    this.lastUpdated   = s.lastUpdated || null;
+    this.onlineListings = null;
+    this.vautoData     = {};
+    this.filterStatus  = 'all';
+    this.filterStore   = '';
+    this.wsFilterStore = '';
+    this.wholesaleView = false;
+    this.selectedRows  = new Set();
     this.closeHistoryModal();
-    this.renderSession(document.getElementById('auc-workspace'));
+    // showWorkspace ensures #auc-workspace exists in the DOM before rendering
+    this.showWorkspace();
     Toast.show(`Loaded: ${s.label}`);
   },
 };
