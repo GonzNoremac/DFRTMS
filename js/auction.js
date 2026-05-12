@@ -104,7 +104,7 @@ const Auction = {
               <button class="auc-link-btn" id="auc-rename-btn" title="Rename session">✎</button>
             </div>
             <div class="auc-session-meta">
-              <span class="auc-pill ${closed ? 'auc-pill-closed' : 'auc-pill-active'}">${closed ? 'Closed' : 'Active'}</span>
+              <span class="auc-pill ${archived ? 'auc-pill-archived' : closed ? 'auc-pill-closed' : 'auc-pill-active'}">${archived ? 'Archived' : closed ? 'Closed' : 'Active'}</span>
               ${hasV ? `${this.vehicles.length} vehicles` : 'No vehicles yet'}
               ${this.lastUpdated ? `<span style="font-size:11px;color:var(--text-4)">· Updated ${this.lastUpdated}</span>` : ''}
             </div>
@@ -114,9 +114,12 @@ const Auction = {
           <button class="auc-tab-btn${!this.wholesaleView?' active':''}" onclick="Auction.setView(false)">Auction results</button>
           <button class="auc-tab-btn${this.wholesaleView?' active':''}" onclick="Auction.setView(true)">Online listings${this.vehicles.filter(v=>v.goOnline).length>0?` <span class='auc-tab-count'>${this.vehicles.filter(v=>v.goOnline).length}</span>`:''}</button>
           <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
-          ${closed
-            ? `<button class="auc-btn-secondary" id="auc-reopen-btn">Re-open auction</button>`
-            : `<button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>`}
+          ${archived ? '' : closed ? `
+            <button class="auc-btn-secondary" id="auc-reopen-btn">Re-open</button>
+            <button class="auc-btn-primary"   id="auc-archive-btn">Archive session</button>
+          ` : `
+            <button class="auc-btn-secondary" id="auc-close-btn">Close auction</button>
+          `}
           ${hasV ? `
             <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
             <button class="auc-btn-secondary" onclick="Auction.exportManagerReview()">↓ Manager review</button>
@@ -215,6 +218,7 @@ const Auction = {
     });
     document.getElementById('auc-close-btn')?.addEventListener('click', () => this.closeSession());
     document.getElementById('auc-reopen-btn')?.addEventListener('click', () => this.reopenSession());
+    document.getElementById('auc-archive-btn')?.addEventListener('click', () => this.archiveSession());
     document.getElementById('auc-rename-btn')?.addEventListener('click', () => this.renameSession());
     document.getElementById('auc-select-all')?.addEventListener('change', e => {
       const filtered = this.getFiltered();
@@ -223,14 +227,40 @@ const Auction = {
       this.renderSession(document.getElementById('auc-workspace'));
     });
     document.getElementById('action-send-online')?.addEventListener('click', () => {
-      this.vehicles.filter(v => this.selectedRows.has(v.stock)).forEach(v => { v.goOnline = true; });
+      this.vehicles.filter(v => this.selectedRows.has(v.stock)).forEach(v => {
+        v.goOnline = true;
+        if (!v.onlineListing) {
+          v.onlineListing = {
+            stock:         v.stock,
+            year:          v.year,
+            make:          v.make,
+            model:         v.model,
+            color:         v.color || '',
+            vin:           v.vin   || '',
+            store:         v.store || '',
+            cost:          v.cost  || null,
+            book:          v.book  || null,
+            mmr:           v.mmr   || null,
+            auctionHighBid: v.maxBid || null,
+            openlane:  null,
+            acv:       null,
+            manheim:   null,
+            status:    'active',
+            soldOn:    null,
+            soldPrice: null,
+          };
+        }
+      });
       this.selectedRows.clear();
       this.saveSession();
       this.renderSession(document.getElementById('auc-workspace'));
       Toast.show('Sent to Online listings', 'success');
     });
     document.getElementById('action-remove-online')?.addEventListener('click', () => {
-      this.vehicles.filter(v => this.selectedRows.has(v.stock)).forEach(v => { v.goOnline = false; });
+      this.vehicles.filter(v => this.selectedRows.has(v.stock)).forEach(v => {
+        v.goOnline = false;
+        v.onlineListing = null;
+      });
       this.selectedRows.clear();
       this.saveSession();
       this.renderSession(document.getElementById('auc-workspace'));
@@ -249,7 +279,9 @@ const Auction = {
         if (!btn) return;
         const action   = btn.dataset.action;
         const idx      = parseInt(btn.dataset.stock);
-        const filtered = this.getFiltered();
+        const filtered = this.wholesaleView
+          ? this.vehicles.filter(v => v.goOnline && v.onlineListing)
+          : this.getFiltered();
         const rec      = filtered[idx];
         if (!rec) return;
         if (action === 'accept')    this.setDecision(rec.stock, 'accepted');
@@ -270,6 +302,9 @@ const Auction = {
           const val      = parseFloat(btn.dataset.val);
           this.sellVehicle(rec.stock, platform, val);
         }
+        if (action === 'unsell') {
+          this.unsellVehicle(rec.stock);
+        }
       });
       // Delegated listener for wholesale bid inputs
       aucTable.addEventListener('change', e => {
@@ -277,8 +312,8 @@ const Auction = {
         if (!input) return;
         const wsIdx    = parseInt(input.dataset.bidStock);
         const platform = input.dataset.bidPlatform;
-        const list     = (this.wholesale||[]).filter(v => v.status !== 'sold');
-        const rec      = list[wsIdx];
+        const wslist   = this.vehicles.filter(v => v.goOnline && v.onlineListing && v.onlineListing.status !== 'sold');
+        const rec      = wslist[wsIdx];
         if (rec) this.updateBid(rec.stock, platform, input.value);
       });
     }
@@ -454,11 +489,19 @@ const Auction = {
     const v = this.vehicles.find(r => r.stock === stock);
     if (!v) return;
     v.goOnline = checked;
+    if (checked && !v.onlineListing) {
+      v.onlineListing = {
+        stock: v.stock, year: v.year, make: v.make, model: v.model,
+        color: v.color||'', vin: v.vin||'', store: v.store||'',
+        cost: v.cost||null, book: v.book||null, mmr: v.mmr||null,
+        auctionHighBid: v.maxBid||null,
+        openlane: null, acv: null, manheim: null,
+        status: 'active', soldOn: null, soldPrice: null,
+      };
+    } else if (!checked) {
+      v.onlineListing = null;
+    }
     this.saveSession();
-    // No full re-render needed — just update the tab count
-    const tab = document.querySelector('.auc-tab-btn:last-of-type');
-    const count = this.vehicles.filter(v => v.goOnline).length;
-    // Update Online listings tab count if visible
     this.renderSession(document.getElementById('auc-workspace'));
   },
 
@@ -528,7 +571,7 @@ const Auction = {
       reserve: parseFloat(document.getElementById('av-reserve').value) || 0,
       cost:    parseFloat(document.getElementById('av-cost').value)    || null,
       book:    parseFloat(document.getElementById('av-book').value)    || null,
-      mmr:     null, maxBid: 0, bidBy: '', decision: 'nosale', goOnline: false,
+      mmr:     null, maxBid: 0, bidBy: '', decision: 'nosale', goOnline: false, onlineListing: null,
     });
     this.saveSession();
     this.closeHistoryModal();
@@ -538,46 +581,47 @@ const Auction = {
 
   // ---- Online listings ------------------------------------
   renderWholesale() {
-    const list = this.vehicles.filter(v => v.goOnline);
+    const list = this.vehicles.filter(v => v.goOnline && v.onlineListing);
     if (!list.length) return `
       <div class="auc-empty" style="margin-top:12px">
-        <div class="auc-empty-sub">No vehicles marked for online listing yet. Check the Online column on vehicles you want to list.</div>
+        <div class="auc-empty-sub">No vehicles marked for online listing yet. Select vehicles and use Action → Send to Online.</div>
       </div>`;
 
-    const active = list.filter(v => v.status !== 'sold');
-    const sold   = list.filter(v => v.status === 'sold');
+    const wsStores   = this.getStores(list);
+    const wsFiltered = this.wsFilterStore ? list.filter(v => v.store === this.wsFilterStore) : list;
+    const wsActive   = wsFiltered.filter(v => v.onlineListing.status !== 'sold').map((v,i) => ({...v, _wsIdx: i}));
+    const wsSold     = wsFiltered.filter(v => v.onlineListing.status === 'sold').map((v,i) => ({...v, _wsIdx: wsActive.length+i}));
 
     const renderRow = v => {
-      const fmt  = n => n ? '$' + Number(n).toLocaleString() : '—';
+      const ol  = v.onlineListing;
+      const fmt = n => n ? '$' + Number(n).toLocaleString() : '—';
       const bids = [
-        { platform: 'Openlane', val: v.openlane },
-        { platform: 'ACV',      val: v.acv      },
-        { platform: 'Manheim',  val: v.manheim   },
+        { platform: 'Openlane', val: ol.openlane },
+        { platform: 'ACV',      val: ol.acv      },
+        { platform: 'Manheim',  val: ol.manheim  },
       ].filter(b => b.val);
-      const winning = bids.length ? bids.reduce((a,b) => b.val > a.val ? b : a) : null;
+      const winning    = bids.length ? bids.reduce((a,b) => b.val > a.val ? b : a) : null;
+      const profit     = (winning && ol.cost) ? winning.val - ol.cost : null;
+      const profitColor = profit === null ? 'var(--text-3)' : profit >= 0 ? 'var(--green)' : 'var(--red)';
 
-      if (v.status === 'sold') {
-        return `<tr class="auc-row" style="opacity:0.6">
+      if (ol.status === 'sold') {
+        return `<tr class="auc-row" style="opacity:0.65;border-left:3px solid var(--green)">
           <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${v.stock}</td>
           <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
               <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
           <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
           <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
-            <span style="color:var(--text-2);font-weight:600">${fmt(v.cost)}</span><br>
-            <span style="color:var(--text-3);font-size:10px">${fmt(v.book)}</span><br>
-            <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span>
+            <span style="color:var(--text-2);font-weight:600">${fmt(ol.cost)}</span><br>
+            <span style="color:var(--text-3);font-size:10px">${fmt(ol.book)}</span><br>
+            <span style="color:var(--text-3);font-size:10px">${fmt(ol.mmr)}</span>
           </td>
-          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${v.auctionBid?fmt(v.auctionBid):'—'}</td>
-          <td style="text-align:center;font-size:11px;color:var(--text-3)">—</td>
-          <td><span class="auc-res-badge hit" style="font-size:11px">Sold — ${v.soldOn}</span></td>
-          <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--green)">${fmt(v.soldPrice)}</td>
-          <td></td>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${ol.auctionHighBid?fmt(ol.auctionHighBid):'—'}</td>
+          <td style="font-size:11px;color:var(--text-3)">—</td>
+          <td style="font-weight:600;color:var(--green);font-size:12px">Sold — ${ol.soldOn}</td>
+          <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--green)">${fmt(ol.soldPrice)}</td>
+          <td><span class="auc-link" style="color:var(--amber)" data-action="unsell" data-stock="${v._wsIdx}">[Mark unsold]</span></td>
         </tr>`;
       }
-
-      const profitColor = (winning && v.cost)
-        ? (winning.val - v.cost >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--text-3)';
-      const profit = (winning && v.cost) ? winning.val - v.cost : null;
 
       return `<tr class="auc-row">
         <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${v.stock}</td>
@@ -585,33 +629,33 @@ const Auction = {
             <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
         <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
         <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
-          <span style="color:var(--text-2);font-weight:600">${fmt(v.cost)}</span><br>
-          <span style="color:var(--text-3);font-size:10px">${fmt(v.book)}</span><br>
-          <span style="color:var(--text-3);font-size:10px">${fmt(v.mmr)}</span>
+          <span style="color:var(--text-2);font-weight:600">${fmt(ol.cost)}</span><br>
+          <span style="color:var(--text-3);font-size:10px">${fmt(ol.book)}</span><br>
+          <span style="color:var(--text-3);font-size:10px">${fmt(ol.mmr)}</span>
         </td>
-        <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${v.auctionBid?'var(--amber)':'var(--text-4)'}">
-          ${v.auctionBid?fmt(v.auctionBid):'—'}
+        <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${ol.auctionHighBid?'var(--amber)':'var(--text-4)'}">
+          ${ol.auctionHighBid?fmt(ol.auctionHighBid):'—'}
         </td>
         <td>
-          <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;flex-direction:column;gap:3px">
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">OPENLANE</span>
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
-                value="${v.openlane||''}"
+                value="${ol.openlane||''}"
                 style="-moz-appearance:textfield;${winning?.platform==='Openlane'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
                 data-bid-stock="${v._wsIdx}" data-bid-platform="openlane">
             </div>
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">ACV</span>
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
-                value="${v.acv||''}"
+                value="${ol.acv||''}"
                 style="-moz-appearance:textfield;${winning?.platform==='ACV'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
                 data-bid-stock="${v._wsIdx}" data-bid-platform="acv">
             </div>
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">MANHEIM</span>
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
-                value="${v.manheim||''}"
+                value="${ol.manheim||''}"
                 style="-moz-appearance:textfield;${winning?.platform==='Manheim'?'border-color:var(--green);color:var(--green);font-weight:600;':''}"
                 data-bid-stock="${v._wsIdx}" data-bid-platform="manheim">
             </div>
@@ -619,8 +663,8 @@ const Auction = {
         </td>
         <td>
           ${winning
-            ? `<span class="auc-res-badge hit">${winning.platform} — ${fmt(winning.val)}</span>`
-            : `<span class="auc-res-badge nosale">No bids yet</span>`}
+            ? `<span style="color:var(--green);font-weight:600;font-size:12px">${winning.platform} — ${fmt(winning.val)}</span>`
+            : `<span style="color:var(--text-4);font-size:11px">No bids yet</span>`}
         </td>
         <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${profitColor}">
           ${profit!==null?(profit>=0?'+':'')+fmt(profit):'—'}
@@ -634,13 +678,6 @@ const Auction = {
         </td>
       </tr>`;
     };
-
-    const wsStores = this.getStores(this.wholesale);
-    const wsFiltered = this.wsFilterStore
-      ? list.filter(v => v.store === this.wsFilterStore)
-      : list;
-    const wsActive = wsFiltered.filter(v => v.status !== 'sold').map((v,i) => ({...v, _wsIdx: i}));
-    const wsSold   = wsFiltered.filter(v => v.status === 'sold').map((v,i) => ({...v, _wsIdx: wsActive.length+i}));
 
     return `
       ${wsStores.length > 1 ? `
@@ -663,7 +700,7 @@ const Auction = {
           <tbody>
             ${wsActive.map(renderRow).join('')}
             ${wsSold.length ? `
-              <tr><td colspan="13" style="padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);background:var(--bg-raised);border-top:1px solid var(--border)">Sold</td></tr>
+              <tr><td colspan="9" style="padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);background:var(--bg-raised);border-top:1px solid var(--border)">Sold</td></tr>
               ${wsSold.map(renderRow).join('')}
             ` : ''}
           </tbody>
@@ -672,22 +709,33 @@ const Auction = {
   },
 
   updateBid(stock, platform, value) {
-    const v = (this.wholesale || []).find(w => w.stock === stock);
-    if (!v) return;
-    v[platform] = parseFloat(value) || null;
+    const v = this.vehicles.find(w => w.stock === stock);
+    if (!v || !v.onlineListing) return;
+    v.onlineListing[platform] = parseFloat(value) || null;
     this.saveSession();
     this.renderSession(document.getElementById('auc-workspace'));
   },
 
   sellVehicle(stock, platform, price) {
-    const v = (this.wholesale || []).find(w => w.stock === stock);
-    if (!v) return;
+    const v = this.vehicles.find(w => w.stock === stock);
+    if (!v || !v.onlineListing) return;
     if (!confirm(`Mark ${stock} as sold on ${platform} for $${Number(price).toLocaleString()}?`)) return;
-    v.status    = 'sold';
-    v.soldOn    = platform;
-    v.soldPrice = price;
+    v.onlineListing.status    = 'sold';
+    v.onlineListing.soldOn    = platform;
+    v.onlineListing.soldPrice = price;
     this.saveSession();
     Toast.show(`${stock} sold on ${platform}`, 'success');
+    this.renderSession(document.getElementById('auc-workspace'));
+  },
+
+  unsellVehicle(stock) {
+    const v = this.vehicles.find(w => w.stock === stock);
+    if (!v || !v.onlineListing) return;
+    v.onlineListing.status    = 'active';
+    v.onlineListing.soldOn    = null;
+    v.onlineListing.soldPrice = null;
+    this.saveSession();
+    Toast.show(`${stock} marked unsold`);
     this.renderSession(document.getElementById('auc-workspace'));
   },
 
@@ -764,23 +812,31 @@ const Auction = {
 
   // Export 3: Online listings — everything that did NOT sell
   exportOnlineListings() {
-    const unsold = this.vehicles.filter(v => v.goOnline);
-    if (!unsold.length) { Toast.show('No vehicles marked for online listing', 'error'); return; }
-    const fmt  = n => n ? '$' + Number(n).toLocaleString() : '';
+    const list = this.vehicles.filter(v => v.goOnline && v.onlineListing);
+    if (!list.length) { Toast.show('No vehicles marked for online listing', 'error'); return; }
     const date = this.sessionLabel.replace(/[^a-z0-9]/gi,'_');
     this.csvDownload(`${date}_online_listings.csv`,
-      ['Stock #','Store','Year','Make','Model','Color','VIN','Miles',
-       'Reserve','Max Bid','Bid By','Cost','Book','MMR','Decision'],
-      unsold.map(v => {
-        const dec = { denied:'Denied', nosale:'No Sale', pending:'Pending' }[v.decision] || v.decision;
+      ['Stock #','VIN','Year','Make','Model','Color','Store',
+       'Cost','Book','MMR','Auction High Bid',
+       'Openlane Bid','ACV Bid','Manheim Bid','Winning Platform','Winning Bid','Status'],
+      list.map(v => {
+        const ol = v.onlineListing;
+        const bids = [
+          { p:'Openlane', val: ol.openlane },
+          { p:'ACV',      val: ol.acv      },
+          { p:'Manheim',  val: ol.manheim  },
+        ].filter(b => b.val);
+        const winning = bids.length ? bids.reduce((a,b) => b.val>a.val?b:a) : null;
         return [
-          v.stock, v.store||'', v.year, v.make, v.model, v.color||'', v.vin||'',
-          v.miles||'', v.reserve||'', v.maxBid||'', v.bidBy||'',
-          v.cost||'', v.book||'', v.mmr||'', dec
+          v.stock, ol.vin||'', v.year, v.make, v.model, v.color||'', v.store||'',
+          ol.cost||'', ol.book||'', ol.mmr||'', ol.auctionHighBid||'',
+          ol.openlane||'', ol.acv||'', ol.manheim||'',
+          winning ? winning.p : '', winning ? winning.val : '',
+          ol.status === 'sold' ? `Sold — ${ol.soldOn}` : 'Active'
         ];
       })
     );
-    Toast.show(`Exported ${unsold.length} vehicles`, 'success');
+    Toast.show(`Exported ${list.length} vehicles`, 'success');
   },
 
   // ---- File loading ------------------------------------------
@@ -897,6 +953,7 @@ const Auction = {
           mmr:  prev?.mmr  || null, kbb:  prev?.kbb  || null,
           decision,
           goOnline: prev?.goOnline || false,
+          onlineListing: prev?.onlineListing || null,
         });
       }
 
@@ -962,6 +1019,105 @@ const Auction = {
     this.renderSession(document.getElementById('auc-workspace'));
   },
 
+  async archiveSession() {
+    if (!confirm('Archive this session? It will be saved as a read-only record and the live session will be deleted.')) return;
+    if (!this.sessionId) return;
+
+    const btn = document.getElementById('auc-archive-btn');
+    if (btn) { btn.textContent = 'Archiving…'; btn.disabled = true; }
+
+    try {
+      // Build auction results snapshot — only the fields we want
+      const auctionResults = this.vehicles.map(v => {
+        const bid    = parseFloat(v.maxBid) || 0;
+        const cost   = parseFloat(v.cost)   || 0;
+        const profit = bid > 0 && cost > 0  ? bid - cost : null;
+        const isSold = v.decision === 'auto' || v.decision === 'accepted';
+        return {
+          stock:    v.stock    || '',
+          year:     v.year     || '',
+          make:     v.make     || '',
+          model:    v.model    || '',
+          store:    v.store    || '',
+          buyer:    v.buyer    || '',
+          reserve:  v.reserve  || null,
+          maxBid:   bid        || null,
+          bidBy:    v.bidBy    || '',
+          cost:     v.cost     || null,
+          book:     v.book     || null,
+          mmr:      v.mmr      || null,
+          profit:   profit,
+          decision: isSold ? 'Sold' : v.decision === 'denied' ? 'Denied' : v.decision === 'nosale' ? 'No sale' : 'Pending',
+        };
+      });
+
+      // Build online listings snapshot — only vehicles flagged with onlineListing data
+      const onlineListings = this.vehicles
+        .filter(v => v.goOnline && v.onlineListing)
+        .map(v => {
+          const ol = v.onlineListing;
+          const bids = [
+            { p: 'Openlane', val: ol.openlane },
+            { p: 'ACV',      val: ol.acv      },
+            { p: 'Manheim',  val: ol.manheim  },
+          ].filter(b => b.val);
+          const winning = bids.length ? bids.reduce((a,b) => b.val > a.val ? b : a) : null;
+          const profit  = (winning && ol.cost) ? winning.val - ol.cost : null;
+          return {
+            stock:          v.stock          || '',
+            year:           v.year           || '',
+            make:           v.make           || '',
+            model:          v.model          || '',
+            store:          v.store          || '',
+            cost:           ol.cost          || null,
+            book:           ol.book          || null,
+            mmr:            ol.mmr           || null,
+            auctionHighBid: ol.auctionHighBid|| null,
+            openlane:       ol.openlane      || null,
+            acv:            ol.acv           || null,
+            manheim:        ol.manheim       || null,
+            winningPlatform: winning ? winning.p   : null,
+            winningBid:      winning ? winning.val : null,
+            profit:          profit,
+            status:          ol.status === 'sold' ? `Sold — ${ol.soldOn}` : 'Active',
+            soldPrice:       ol.soldPrice    || null,
+          };
+        });
+
+      // Write to auction_archives
+      await addDoc(collection(db, 'auction_archives'), {
+        sessionId:      this.sessionId,
+        label:          this.sessionLabel,
+        date:           this.pastSessions.find(s => s.id === this.sessionId)?.date || '',
+        archivedAt:     new Date().toISOString(),
+        totalVehicles:  this.vehicles.length,
+        sold:           auctionResults.filter(v => v.decision === 'Sold').length,
+        auctionResults,
+        onlineListings,
+      });
+
+      // Delete the live session
+      await deleteDoc(doc(db, 'auction_sessions', this.sessionId));
+
+      // Clear local state
+      this.sessionId     = null;
+      this.sessionLabel  = '';
+      this.vehicles      = [];
+      this.wholesale     = [];
+      this.vautoData     = {};
+      this.sessionStatus = 'active';
+      this.wholesaleView = false;
+      this.selectedRows  = new Set();
+
+      Toast.show('Session archived', 'success');
+      this.showWorkspace();
+    } catch(e) {
+      console.error('Archive error:', e);
+      Toast.show('Archive failed — check connection', 'error');
+      if (btn) { btn.textContent = 'Archive session'; btn.disabled = false; }
+    }
+  },
+
   async renameSession() {
     const current = this.sessionLabel;
     const newName = prompt('Rename auction session:', current);
@@ -1009,7 +1165,7 @@ const Auction = {
                   <div class="auc-history-meta">${s.date} · ${(s.vehicles||[]).length} vehicles</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                  <span class="auc-pill ${s.status==='closed'?'auc-pill-closed':'auc-pill-active'}">${s.status}</span>
+                  <span class="auc-pill ${s.status==='archived'?'auc-pill-archived':s.status==='closed'?'auc-pill-closed':'auc-pill-active'}">${s.status}</span>
                   <button class="auc-action-btn deny" onclick="Auction.deleteSession('${s.id}')">Delete</button>
                 </div>
               </div>`).join('')}
