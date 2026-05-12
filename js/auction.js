@@ -997,15 +997,17 @@ const Auction = {
           if (ws && !wasEmpty) this.renderSession(ws);
         }
       } else {
-        // Auto-load the active session if one exists
-        const active = this.pastSessions.find(s => s.id);
+        // Auto-load the most recent non-archived session if one exists
+        const active = this.pastSessions.find(s => s.status !== 'archived');
         if (active) {
           this.sessionId    = active.id;
           this.sessionLabel = active.label;
           this.vehicles     = active.vehicles  || [];
           this.wholesale    = active.wholesale || [];
           this.lastUpdated  = active.lastUpdated || null;
-          this.showWorkspace();
+          // Force render directly — don't rely on DOM state check
+          const ws = document.getElementById('auc-workspace');
+          if (ws) this.renderSession(ws);
         }
       }
     }, err => console.error('Listener error:', err));
