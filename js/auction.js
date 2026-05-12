@@ -985,11 +985,14 @@ const Auction = {
   // ---- Firestore ---------------------------------------------
   async saveSession() {
     if (!this.sessionId) return;
+    const ts = new Date().toISOString();
+    this._saveTs = ts;  // track locally so onSnapshot can skip this update
     try {
       await updateDoc(doc(db, 'auction_sessions', this.sessionId), {
         vehicles:    this.vehicles,
         wholesale:   this.wholesale || [],
         lastUpdated: this.lastUpdated || null,
+        _saveTs:     ts,
       });
     } catch(e) { console.error('Save error:', e); }
   },
@@ -1003,27 +1006,46 @@ const Auction = {
       const active = this.pastSessions.find(s => s.status !== 'archived');
 
       if (active) {
+        const idChanged = this.sessionId !== active.id;
         this.sessionId    = active.id;
         this.sessionLabel = active.label;
-        this.vehicles     = active.vehicles   || [];
-        this.wholesale    = active.wholesale  || [];
         this.lastUpdated  = active.lastUpdated || null;
-      } else {
-        this.sessionId    = null;
-        this.sessionLabel = '';
-        this.vehicles     = [];
-        this.wholesale    = [];
-        this.lastUpdated  = null;
-      }
 
-      // Always update the workspace with current state
-      this.showWorkspace();
+        // Only update vehicles/wholesale if data actually changed
+        // Compare by lastUpdated timestamp to avoid re-render loops
+        const newTs = active.lastUpdated || active.createdAt || '';
+        const saveTs = active._saveTs || '';
+        const ownSave = saveTs === this._saveTs && this._saveTs;
+        if (!ownSave && (idChanged || newTs !== this._lastTs)) {
+          this._lastTs  = newTs;
+          this.vehicles = active.vehicles  || [];
+          this.wholesale = active.wholesale || [];
+          // Only render if workspace is showing (not during a form like new session)
+          const ws = document.getElementById('auc-workspace');
+          if (ws && !ws.querySelector('.auc-setup-card')) {
+            this.showWorkspace();
+          } else if (ws && idChanged) {
+            this.showWorkspace();
+          }
+        }
+      } else {
+        if (this.sessionId !== null) {
+          this.sessionId    = null;
+          this.sessionLabel = '';
+          this.vehicles     = [];
+          this.wholesale    = [];
+          this.lastUpdated  = null;
+          this._lastTs      = null;
+          this.showWorkspace();
+        }
+      }
 
     }, err => {
       console.error('Listener error:', err);
       Toast.show('Could not load auction data', 'error');
     });
   },
+
 
   async archiveSession() {
     if (!confirm('Archive this session? It will be saved as a read-only record and the live session will be deleted.')) return;
