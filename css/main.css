@@ -1501,3 +1501,22 @@ body {
 .arch-list-item.active { background: var(--accent-light); border-left-color: var(--accent); }
 .arch-list-label { font-size: 13px; font-weight: 500; color: var(--text-1); }
 .arch-list-meta  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ---- Search input (shared) ---- */
+.search-input {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--text-1);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  min-width: 160px;
+}
+.search-input::placeholder { color: var(--text-4); }
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
