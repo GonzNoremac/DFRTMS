@@ -33,6 +33,8 @@ const App = {
       .addEventListener('keydown', e => { if (e.key === 'Enter') this.login(); });
     document.getElementById('btn-signout')
       .addEventListener('click', () => this.logout());
+    document.getElementById('btn-tools')
+      .addEventListener('click', () => this.openTools());
 
     document.querySelectorAll('.nav-link[data-page]').forEach(el => {
       el.addEventListener('click', () => this.navigate(el.dataset.page));

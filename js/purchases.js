@@ -1012,7 +1012,7 @@ const Purchases = {
   },
 
   async fixAndersonStores() {
-    const btn = document.getElementById('fix-anderson-btn') || document.getElementById('tool-anderson-btn');
+    const btn = document.getElementById('tool-anderson-btn') || document.getElementById('fix-anderson-btn');
     const targets = this.records.filter(r =>
       r.store && /^Anderson\s+/i.test(r.store)
     );
@@ -1022,7 +1022,7 @@ const Purchases = {
     }
     if (!confirm(`Found ${targets.length} record${targets.length>1?'s':''} with "Anderson " in the store name.\n\nStrip the prefix from all of them?`)) return;
 
-    btn.textContent = 'Migrating…'; btn.disabled = true;
+    if (btn) { btn.textContent = 'Migrating…'; btn.disabled = true; }
     let done = 0, failed = 0;
     for (const r of targets) {
       try {
@@ -1032,7 +1032,7 @@ const Purchases = {
         done++;
       } catch(e) { console.error(e); failed++; }
     }
-    btn.textContent = '🔧 Strip Anderson prefix'; btn.disabled = false;
+    if (btn) { btn.textContent = '🔧 Strip Anderson prefix'; btn.disabled = false; }
     if (failed === 0) Toast.show(`Fixed ${done} record${done>1?'s':''}`, 'success');
     else Toast.show(`${done} fixed, ${failed} failed`, 'error');
     this.renderRows();
@@ -1051,7 +1051,7 @@ const Purchases = {
     }
     if (!confirm(`Found ${targets.length} pre-May 2025 non-ICO record${targets.length>1?'s':''} with no financial data.\n\nStamp purchasePrice: 0 on all of them to clear the ⚠ flag?`)) return;
 
-    btn.textContent = 'Migrating…'; btn.disabled = true;
+    if (btn) { btn.textContent = 'Migrating…'; btn.disabled = true; }
     let done = 0, failed = 0;
     for (const r of targets) {
       try {
@@ -1060,7 +1060,7 @@ const Purchases = {
         done++;
       } catch(e) { console.error(e); failed++; }
     }
-    btn.textContent = '🔧 Run one-time migration'; btn.disabled = false;
+    if (btn) { btn.textContent = '🔧 Run one-time migration'; btn.disabled = false; }
     if (failed === 0) Toast.show(`Migrated ${done} records`, 'success');
     else Toast.show(`${done} migrated, ${failed} failed`, 'error');
     this.renderRows();
