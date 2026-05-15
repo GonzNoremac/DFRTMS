@@ -954,10 +954,12 @@ const Purchases = {
   },
 
   async saveRecord(id, pending) {
+    // Clear expandedId BEFORE the await so the snapshot listener
+    // is not blocked when Firestore echoes our own write back
+    this.expandedId = null;
     try {
       await updateDoc(doc(db, 'purchases', id), pending);
       Toast.show('Saved', 'success');
-      this.expandedId = null;
       this.renderRows();
     } catch(e) {
       console.error(e);
