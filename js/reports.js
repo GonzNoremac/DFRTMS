@@ -125,7 +125,7 @@ const Reports = {
           platform: ol.soldOn,
           amount:   parseFloat(ol.soldPrice) || 0,
           cost:     parseFloat(ol.cost)      || 0,
-          soldAt:   ol.soldAt || null,
+          soldAt:   ol.soldAt || new Date().toISOString().slice(0,10),
           source:   'session',
         });
       });
