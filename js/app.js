@@ -101,7 +101,7 @@ const App = {
         </div>
         <div style="padding-bottom:14px;border-bottom:1px solid var(--border)">
           <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px">Acknowledge pre-May 2025 financials</div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">Stamps purchasePrice: 0 on non-ICO records before May 2025 to clear the No financials flag.</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">Stamps purchasePrice: 0 on non-ICO records before May 2026 to clear the No financials flag.</div>
           <button class="auc-btn-secondary" id="tool-oldfinance-btn">🔧 Run migration</button>
           <span id="tool-oldfinance-result" style="font-size:11px;margin-left:10px;color:var(--text-3)"></span>
         </div>

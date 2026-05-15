@@ -3,9 +3,9 @@
 // ============================================================
 
 import {
-  db,
+  db, auth,
   collection, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, doc
+  onSnapshot, query, orderBy, doc, getDoc, setDoc
 } from './firebase.js';
 import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
@@ -198,7 +198,7 @@ const Purchases = {
     this.bindFilters();
     this.bindTableSort();
     this.bindImport();
-    this.subscribeFirestore();
+    this.loadPrefs().then(() => this.subscribeFirestore());
   },
 
   // ---- Firestore listener ------------------------------------
@@ -221,14 +221,51 @@ const Purchases = {
     return '$' + net.toLocaleString();
   },
 
+  async loadPrefs() {
+    try {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      const snap = await getDoc(doc(db, 'user_preferences', uid));
+      if (snap.exists()) {
+        const prefs = snap.data();
+        if (prefs.filterBuyer !== undefined) this.filterBuyer = prefs.filterBuyer;
+        if (prefs.filterMonth !== undefined) this.filterMonth = prefs.filterMonth;
+      }
+    } catch(e) { console.error('Load prefs error:', e); }
+  },
+
+  async savePrefs() {
+    try {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      await setDoc(doc(db, 'user_preferences', uid), {
+        filterBuyer: this.filterBuyer,
+        filterMonth: this.filterMonth,
+      }, { merge: true });
+    } catch(e) { console.error('Save prefs error:', e); }
+  },
+
   subscribeFirestore() {
     const q = collection(db, 'purchases');
     this._unsubscribe = onSnapshot(q,
       snapshot => {
-        // Sort client-side — no index dependency
-        this.records = snapshot.docs
+        const newRecords = snapshot.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+        // If user has a row expanded (actively editing), only update other records
+        // to avoid collapsing their work mid-edit
+        if (this.expandedId) {
+          this.records = newRecords.map(r =>
+            r.id === this.expandedId
+              ? (this.records.find(x => x.id === r.id) || r) // keep local version
+              : r
+          );
+          // Don't re-render — user is editing
+          return;
+        }
+
+        this.records = newRecords;
 
         const monthSel = document.getElementById('p-month');
         if (monthSel) {
@@ -413,7 +450,7 @@ const Purchases = {
 
   bindFilters() {
     document.getElementById('p-search')?.addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
-    document.getElementById('p-month')?.addEventListener('change',  e => { this.filterMonth  = e.target.value; this.renderRows(); });
+    document.getElementById('p-month')?.addEventListener('change',  e => { this.filterMonth  = e.target.value; this.savePrefs(); this.renderRows(); });
 
     // Financial filter toggle — use document-level delegation so it survives re-renders
     this._finBtnHandler = (e) => {
@@ -494,7 +531,7 @@ const Purchases = {
     // Menu selects and checkboxes
     document.getElementById('p-store')?.addEventListener('change',  e => { this.filterStore   = e.target.value;    this.renderRows(); });
     document.getElementById('p-source')?.addEventListener('change', e => { this.filterSource  = e.target.value;    this.renderRows(); });
-    document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer   = e.target.value;    this.renderRows(); });
+    document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer   = e.target.value;    this.savePrefs(); this.renderRows(); });
     document.getElementById('p-nostock-chk')?.addEventListener('change', e => { this.filterNoStock = e.target.checked; this.renderRows(); });
     document.getElementById('p-openarb-chk')?.addEventListener('change',   e => { this.filterOpenArb   = e.target.checked; this.renderRows(); });
     document.getElementById('p-nofinance-chk')?.addEventListener('change', e => { this.filterNoFinance = e.target.checked; this.renderRows(); });
@@ -562,7 +599,7 @@ const Purchases = {
     if (this.filterNoFinance) data = data.filter(r =>
       r.source !== 'ICO' &&
       (!r.purchasePrice && r.purchasePrice !== 0) &&
-      (r.date || '') >= '2025-05-01'
+      (r.date || '') >= '2026-05-01'
     );
     if (this.filterMonth)   data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
 
@@ -636,7 +673,7 @@ const Purchases = {
     const unwound     = r.arb?.status === 'Unwound';
     const needsFinance = r.source !== 'ICO'
       && (!r.purchasePrice && r.purchasePrice !== 0)
-      && (r.date || '') >= '2025-05-01';
+      && (r.date || '') >= '2026-05-01';
     return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}${unwound ? ' p-row-unwound' : ''}${needsFinance ? ' p-row-nofinance' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
       <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
@@ -1043,7 +1080,7 @@ const Purchases = {
     const targets = this.records.filter(r =>
       r.source !== 'ICO' &&
       (!r.purchasePrice && r.purchasePrice !== 0) &&
-      (!r.date || r.date < '2025-05-01')
+      (!r.date || r.date < '2026-05-01')
     );
     if (!targets.length) {
       Toast.show('No records to migrate — all clear', 'success');

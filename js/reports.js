@@ -250,23 +250,53 @@ const Reports = {
         amount:  s.amount,
       }));
 
-    // Money IN: unwound vehicles in range for this store
+    // Money IN: unwound vehicles
+    // Fall back to dateFiled if dateUnwound not set (older records)
     const unwound = this.purchases
-      .filter(r => (!store || normalizeStore(r.store) === normalizeStore(store)) && r.arb?.status === 'Unwound' && this.inRange(r.arb?.dateUnwound))
+      .filter(r => {
+        if (!r.arb || r.arb.status !== 'Unwound') return false;
+        if (!storeMatch(r)) return false;
+        const date = r.arb.dateUnwound || r.arb.dateFiled || null;
+        return this.inRange(date);
+      })
+      .map(r => {
+        const date = r.arb.dateUnwound || r.arb.dateFiled || null;
+        return {
+          date,
+          dateFmt:  fmt(date),
+          stock:    r.stock || '—',
+          vehicle:  `${r.year || ''} ${r.make || ''} ${r.model || ''}`.trim(),
+          platform: 'Unwind',
+          amount:   parseFloat(r.arb.amountReceived) || 0,
+          note:     'Vehicle returned',
+        };
+      });
+
+    // Money IN: won/closed arbs with money received
+    const arbReceived = this.purchases
+      .filter(r => {
+        if (!r.arb) return false;
+        if (!['Won', 'Closed'].includes(r.arb.status)) return false;
+        if (!(parseFloat(r.arb.amountReceived) > 0)) return false;
+        if (!storeMatch(r)) return false;
+        // Use dateFiled as the date anchor (no separate "received" date yet)
+        return this.inRange(r.arb.dateFiled);
+      })
       .map(r => ({
-        date:    r.arb.dateUnwound,
-        dateFmt: fmt(r.arb.dateUnwound),
-        stock:   r.stock || '—',
-        vehicle: `${r.year || ''} ${r.make || ''} ${r.model || ''}`.trim(),
-        platform: 'Unwind',
-        amount:  parseFloat(r.arb.amountReceived) || 0,
-        note:    'Vehicle returned',
+        date:     r.arb.dateFiled,
+        dateFmt:  fmt(r.arb.dateFiled),
+        stock:    r.stock || '—',
+        vehicle:  `${r.year || ''} ${r.make || ''} ${r.model || ''}`.trim(),
+        platform: `Arb — ${r.arb.status}`,
+        amount:   parseFloat(r.arb.amountReceived) || 0,
+        note:     r.arb.issue || '',
       }));
 
-    // Pending arbs: open cases filed on or before dateTo
+    // Pending arbs: Open cases only
     const pending = this.purchases
-      .filter(r => (!store || normalizeStore(r.store) === normalizeStore(store)) && r.arb &&
-        ['Open'].includes(r.arb.status) &&
+      .filter(r => r.arb &&
+        r.arb.status === 'Open' &&
+        storeMatch(r) &&
         (!this.dateTo || (r.arb.dateFiled || '') <= this.dateTo))
       .map(r => ({
         dateFmt:   fmt(r.arb.dateFiled),
@@ -279,10 +309,11 @@ const Reports = {
 
     // Totals
     const totalOut = moneyOut.reduce((a, r) => a + r.total, 0);
-    const totalIn  = [...moneyIn, ...unwound].reduce((a, r) => a + r.amount, 0);
-    const net      = totalIn + totalOut; // totalOut is negative
+    const allMoneyIn = [...moneyIn, ...unwound, ...arbReceived].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+    const totalIn    = allMoneyIn.reduce((a, r) => a + r.amount, 0);
+    const net        = totalIn + totalOut; // totalOut is negative
 
-    return { store, moneyOut, moneyIn: [...moneyIn, ...unwound].sort((a,b) => (a.date||'').localeCompare(b.date||'')), pending, totalOut, totalIn, net };
+    return { store, moneyOut, moneyIn: allMoneyIn, pending, totalOut, totalIn, net };
   },
 
   storeHTML(s) {
