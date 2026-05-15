@@ -1522,7 +1522,7 @@ body {
 }
 
 /* ---- No stock # indicator ---- */
-.p-row-nostock td { border-left: 3px solid var(--amber); }
+.p-row-nostock .td-stock { border-left: 3px solid var(--amber); }
 .p-filter-active {
   background: var(--amber-bg) !important;
   border-color: var(--amber-mid) !important;
