@@ -1522,6 +1522,17 @@ body {
 }
 
 /* ---- No stock # indicator ---- */
+.p-filter-btn {
+  background: var(--bg-surface); border: 1.5px solid var(--border);
+  border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 500;
+  color: var(--text-2); font-family: var(--font-sans); cursor: pointer;
+  transition: all 0.12s; white-space: nowrap;
+}
+.p-filter-btn:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-med); }
+.p-filter-active {
+  background: var(--amber-bg) !important; border-color: var(--amber-mid) !important;
+  color: var(--amber) !important;
+}
 .p-row-nostock .td-stock { border-left: 3px solid var(--amber) !important; }
 .p-filter-active {
   background: var(--amber-bg) !important;
