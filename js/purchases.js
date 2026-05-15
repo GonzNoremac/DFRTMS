@@ -34,6 +34,7 @@ const Purchases = {
   // ---- Render ------------------------------------------------
   render(container) {
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
+    if (this._finBtnHandler) { document.removeEventListener("click", this._finBtnHandler); this._finBtnHandler = null; }
     window.Purchases = this;
 
     container.innerHTML = `
@@ -63,6 +64,7 @@ const Purchases = {
           <option value="">All buyers</option>
           ${BUYERS.map(b => `<option value="${b}" ${this.filterBuyer === b ? 'selected' : ''}>${b}</option>`).join('')}
         </select>
+        <button class="p-filter-btn${this.filterNoStock ? ' p-filter-active' : ''}" id="p-nostock-btn">⚠ No stock #</button>
         <button class="btn-fin-filter${this.finFilterOpen ? ' active' : ''}" id="btn-fin-filter">
           ⊞ Financials${this._finFilterActive() ? ' <span class="fin-filter-dot"></span>' : ''}
         </button>
@@ -141,7 +143,7 @@ const Purchases = {
             <th>Notes</th>
           </tr></thead>
           <tbody id="p-tbody">
-            <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4)">Loading…</td></tr>
+            <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4)">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -362,17 +364,22 @@ const Purchases = {
   },
 
   bindFilters() {
-    document.getElementById('p-search').addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
-    document.getElementById('p-month').addEventListener('change',  e => { this.filterMonth  = e.target.value; this.renderRows(); });
+    document.getElementById('p-search')?.addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
+    document.getElementById('p-month')?.addEventListener('change',  e => { this.filterMonth  = e.target.value; this.renderRows(); });
 
-    // Financial filter toggle
-    document.getElementById('btn-fin-filter')?.addEventListener('click', () => {
-      this.finFilterOpen = !this.finFilterOpen;
-      const panel = document.getElementById('fin-filter-panel');
-      const btn   = document.getElementById('btn-fin-filter');
-      if (panel) panel.classList.toggle('hidden', !this.finFilterOpen);
-      if (btn)   btn.classList.toggle('active',    this.finFilterOpen);
-    });
+    // Financial filter toggle — use document-level delegation so it survives re-renders
+    this._finBtnHandler = (e) => {
+      if (e.target.closest('#btn-fin-filter')) {
+        this.finFilterOpen = !this.finFilterOpen;
+        const panel = document.getElementById('fin-filter-panel');
+        const btn   = document.getElementById('btn-fin-filter');
+        if (panel) panel.classList.toggle('hidden', !this.finFilterOpen);
+        if (btn)   btn.classList.toggle('active',    this.finFilterOpen);
+      }
+    };
+    // Remove previous handler if navigating back
+    document.removeEventListener('click', this._finBtnHandler);
+    document.addEventListener('click', this._finBtnHandler);
 
     // Financial filter inputs — bind after render
     const ffBind = (id, key) => {
@@ -396,12 +403,19 @@ const Purchases = {
         feesMin:'', feesMax:'', totalMin:'', totalMax:'',
         arbMin:'', arbMax:'',
       };
+      // Clear visible input values too
+      ['ff-dateFrom','ff-dateTo','ff-priceMin','ff-priceMax',
+       'ff-transportMin','ff-transportMax','ff-feesMin','ff-feesMax',
+       'ff-totalMin','ff-totalMax','ff-arbMin','ff-arbMax'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
       this.renderRows();
     });
     document.getElementById('p-nostock-btn')?.addEventListener('click', () => { this.filterNoStock = !this.filterNoStock; this.renderRows(); });
-    document.getElementById('p-store').addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
-    document.getElementById('p-source').addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
-    document.getElementById('p-buyer').addEventListener('change',  e => { this.filterBuyer  = e.target.value; this.renderRows(); });
+    document.getElementById('p-store')?.addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
+    document.getElementById('p-source')?.addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
+    document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer  = e.target.value; this.renderRows(); });
   },
 
   bindTableSort() {
@@ -497,7 +511,7 @@ const Purchases = {
       `${data.length} record${data.length !== 1 ? 's' : ''}`;
 
     if (data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);font-size:13px">
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4);font-size:13px">
         ${this.records.length === 0 ? 'No purchases yet — use quick add above.' : 'No records match your filters.'}
       </td></tr>`;
       return;
@@ -537,13 +551,13 @@ const Purchases = {
 
   detailRowHTML(r) {
     if (this.expandedId !== r.id)
-      return `<tr class="detail-row" data-detail-id="${r.id}" style="display:none"><td colspan="10"></td></tr>`;
+      return `<tr class="detail-row" data-detail-id="${r.id}" style="display:none"><td colspan="9"></td></tr>`;
 
     const arb    = r.arb || {};
     const hasArb = r.arb !== null && r.arb !== undefined;
 
     return `<tr class="detail-row" data-detail-id="${r.id}">
-      <td colspan="10">
+      <td colspan="9">
         <div class="detail-panel" style="grid-template-columns:1fr 1fr 1fr">
           <!-- Col 1: Vehicle details -->
           <div>
@@ -783,6 +797,30 @@ const Purchases = {
     document.querySelector(`[data-delete-id="${id}"]`)?.addEventListener('click', () => {
       this.deleteRecord(id);
     });
+  },
+
+  async saveRecord(id, pending) {
+    try {
+      await updateDoc(doc(db, 'purchases', id), pending);
+      Toast.show('Saved', 'success');
+      this.expandedId = null;
+      this.renderRows();
+    } catch(e) {
+      console.error(e);
+      Toast.show('Save failed — check connection', 'error');
+    }
+  },
+
+  async deleteRecord(id) {
+    if (!confirm('Delete this purchase? This cannot be undone.')) return;
+    try {
+      await deleteDoc(doc(db, 'purchases', id));
+      this.expandedId = null;
+      Toast.show('Record deleted');
+    } catch(e) {
+      console.error(e);
+      Toast.show('Delete failed', 'error');
+    }
   },
 
   // ---- CSV Import --------------------------------------------
