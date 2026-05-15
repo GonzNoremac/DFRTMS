@@ -20,6 +20,8 @@ const Purchases = {
   filterBuyer:  '',
   filterMonth:  '',
   filterNoStock: false,
+  filterOpenArb: false,
+  filterMenuOpen: false,
   finFilter: {
     dateFrom: '', dateTo: '',
     priceMin: '', priceMax: '',
@@ -52,25 +54,62 @@ const Purchases = {
           <option value="">All months</option>
           ${this.getMonths().map(m => `<option value="${m.val}" ${this.filterMonth===m.val?'selected':''}>${m.label}</option>`).join('')}
         </select>
-        <select id="p-store">
-          <option value="">All stores</option>
-          ${STORES.map(s => `<option value="${s}" ${this.filterStore === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-        <select id="p-source">
-          <option value="">All sources</option>
-          ${SOURCES.map(s => `<option value="${s}" ${this.filterSource === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-        <select id="p-buyer">
-          <option value="">All buyers</option>
-          ${BUYERS.map(b => `<option value="${b}" ${this.filterBuyer === b ? 'selected' : ''}>${b}</option>`).join('')}
-        </select>
-        <button class="p-filter-btn${this.filterNoStock ? ' p-filter-active' : ''}" id="p-nostock-btn">⚠ No stock #</button>
+        <div class="p-filter-menu-wrap">
+          <button class="btn-fin-filter${this._anyBasicFilter() ? ' active' : ''}" id="btn-filter-menu">
+            ⊞ Filters${this._anyBasicFilter() ? ` <span class="fin-filter-dot"></span>` : ''}
+          </button>
+          <div id="p-filter-menu" class="p-filter-menu${this.filterMenuOpen ? '' : ' hidden'}">
+            <div class="p-fm-row">
+              <label class="p-fm-label">Store</label>
+              <select id="p-store" class="p-fm-select">
+                <option value="">All stores</option>
+                ${STORES.map(s => `<option value="${s}" ${this.filterStore===s?'selected':''}>${s}</option>`).join('')}
+              </select>
+            </div>
+            <div class="p-fm-row">
+              <label class="p-fm-label">Source</label>
+              <select id="p-source" class="p-fm-select">
+                <option value="">All sources</option>
+                ${SOURCES.map(s => `<option value="${s}" ${this.filterSource===s?'selected':''}>${s}</option>`).join('')}
+              </select>
+            </div>
+            <div class="p-fm-row">
+              <label class="p-fm-label">Buyer</label>
+              <select id="p-buyer" class="p-fm-select">
+                <option value="">All buyers</option>
+                ${BUYERS.map(b => `<option value="${b}" ${this.filterBuyer===b?'selected':''}>${b}</option>`).join('')}
+              </select>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px">
+              <label class="p-fm-check">
+                <input type="checkbox" id="p-nostock-chk" ${this.filterNoStock?'checked':''}>
+                <span>⚠ No stock #</span>
+              </label>
+              <label class="p-fm-check">
+                <input type="checkbox" id="p-openarb-chk" ${this.filterOpenArb?'checked':''}>
+                <span>⚖ Open arbitration</span>
+              </label>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:8px;text-align:right">
+              <button class="btn-ghost" id="p-clear-filters" style="font-size:11px">Clear all filters</button>
+            </div>
+          </div>
+        </div>
         <button class="btn-fin-filter${this.finFilterOpen ? ' active' : ''}" id="btn-fin-filter">
           ⊞ Financials${this._finFilterActive() ? ' <span class="fin-filter-dot"></span>' : ''}
         </button>
         <span class="record-count" id="p-count"></span>
         <button class="btn-import" id="btn-import">⬆ Import CSV</button>
       </div>
+
+      ${this._anyBasicFilter() ? `
+      <div class="p-active-chips">
+        ${this.filterStore  ? `<span class="p-chip">Store: ${this.filterStore}  <span class="p-chip-x" data-clear="store">✕</span></span>`  : ''}
+        ${this.filterSource ? `<span class="p-chip">Source: ${this.filterSource}<span class="p-chip-x" data-clear="source">✕</span></span>` : ''}
+        ${this.filterBuyer  ? `<span class="p-chip">Buyer: ${this.filterBuyer}  <span class="p-chip-x" data-clear="buyer">✕</span></span>`  : ''}
+        ${this.filterNoStock ? `<span class="p-chip p-chip-amber">⚠ No stock # <span class="p-chip-x" data-clear="nostock">✕</span></span>` : ''}
+        ${this.filterOpenArb ? `<span class="p-chip p-chip-amber">⚖ Open arb <span class="p-chip-x" data-clear="openarb">✕</span></span>` : ''}
+      </div>` : ''}
 
       <div id="fin-filter-panel" class="${this.finFilterOpen ? '' : 'hidden'}">
         <div class="fin-filter-grid">
@@ -412,10 +451,48 @@ const Purchases = {
       });
       this.renderRows();
     });
-    document.getElementById('p-nostock-btn')?.addEventListener('click', () => { this.filterNoStock = !this.filterNoStock; this.renderRows(); });
-    document.getElementById('p-store')?.addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
-    document.getElementById('p-source')?.addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
-    document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer  = e.target.value; this.renderRows(); });
+    // Filter menu toggle — use delegated handler
+    if (this._filterMenuHandler) document.removeEventListener('click', this._filterMenuHandler);
+    this._filterMenuHandler = (e) => {
+      const btn  = e.target.closest('#btn-filter-menu');
+      const menu = document.getElementById('p-filter-menu');
+      const wrap = e.target.closest('.p-filter-menu-wrap');
+      if (btn) {
+        this.filterMenuOpen = !this.filterMenuOpen;
+        if (menu) menu.classList.toggle('hidden', !this.filterMenuOpen);
+        return;
+      }
+      // Close if clicking outside the menu
+      if (!wrap && menu && !menu.classList.contains('hidden')) {
+        this.filterMenuOpen = false;
+        menu.classList.add('hidden');
+      }
+      // Chip clear buttons
+      const chip = e.target.closest('[data-clear]');
+      if (chip) {
+        const key = chip.dataset.clear;
+        if (key === 'store')   { this.filterStore   = ''; }
+        if (key === 'source')  { this.filterSource  = ''; }
+        if (key === 'buyer')   { this.filterBuyer   = ''; }
+        if (key === 'nostock') { this.filterNoStock = false; }
+        if (key === 'openarb') { this.filterOpenArb = false; }
+        this.renderRows();
+      }
+    };
+    document.addEventListener('click', this._filterMenuHandler);
+
+    // Menu selects and checkboxes
+    document.getElementById('p-store')?.addEventListener('change',  e => { this.filterStore   = e.target.value;    this.renderRows(); });
+    document.getElementById('p-source')?.addEventListener('change', e => { this.filterSource  = e.target.value;    this.renderRows(); });
+    document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer   = e.target.value;    this.renderRows(); });
+    document.getElementById('p-nostock-chk')?.addEventListener('change', e => { this.filterNoStock = e.target.checked; this.renderRows(); });
+    document.getElementById('p-openarb-chk')?.addEventListener('change', e => { this.filterOpenArb = e.target.checked; this.renderRows(); });
+    document.getElementById('p-clear-filters')?.addEventListener('click', () => {
+      this.filterStore = ''; this.filterSource = ''; this.filterBuyer = '';
+      this.filterNoStock = false; this.filterOpenArb = false;
+      this.filterMenuOpen = false;
+      this.renderRows();
+    });
   },
 
   bindTableSort() {
@@ -427,6 +504,11 @@ const Purchases = {
         this.renderRows();
       });
     });
+  },
+
+  _anyBasicFilter() {
+    return !!(this.filterStore || this.filterSource || this.filterBuyer ||
+              this.filterNoStock || this.filterOpenArb);
   },
 
   _finFilterActive() {
@@ -465,6 +547,7 @@ const Purchases = {
       (r.model  || '').toLowerCase().includes(q)
     );
     if (this.filterNoStock) data = data.filter(r => !r.stock || r.stock.trim() === '');
+    if (this.filterOpenArb)  data = data.filter(r => r.arb && r.arb.status === 'Open');
     if (this.filterMonth)   data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
 
     // Financial filters
@@ -534,7 +617,7 @@ const Purchases = {
     const hasArb     = r.arb !== null && r.arb !== undefined;
     const srcClass   = 'src-' + (r.source || '').replace(/\s/g, '');
     const noStock = !r.stock || r.stock.trim() === '';
-    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}" data-id="${r.id}">
+    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}${unwound ? ' p-row-unwound' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
       <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
       <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || '<span style="color:var(--amber);font-size:10px;font-weight:600">⚠ No stock #</span>'}</td>
@@ -545,7 +628,7 @@ const Purchases = {
       <td><span class="src-badge ${srcClass}">${r.source || ''}</span></td>
       <td style="color:var(--text-2);font-size:12px">${r.store || '—'}</td>
       <td style="font-size:12px;color:var(--text-2)">${r.buyer || '—'}</td>
-      <td style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.notes || ''}">${r.notes || ''}</td>
+      <td style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.notes || ''}">${unwound ? '<span class="arb-status-badge arb-Unwound">Unwound</span>' : (r.notes || '')}</td>
     </tr>`;
   },
 
@@ -640,7 +723,7 @@ const Purchases = {
 
           <!-- Col 3: Arbitration -->
           <div>
-            <div class="detail-section-title">Arbitration</div>
+            <div class="detail-section-title">Arbitration ${arb.status === "Unwound" ? "<span class='arb-status-badge arb-Unwound' style='margin-left:6px'>Unwound — vehicle returned</span>" : ""}</div>
             <div class="arb-toggle">
               <label class="toggle-switch">
                 <input type="checkbox" id="arb-toggle-${r.id}" ${hasArb ? 'checked' : ''}>
@@ -665,7 +748,7 @@ const Purchases = {
                   <input type="date" data-arb-field="dateFiled" value="${arb.dateFiled || today()}"></div>
                 <div class="detail-field"><label>Status</label>
                   <select data-arb-field="status">
-                    ${['Open','Won','Lost','Closed'].map(s =>
+                    ${['Open','Won','Lost','Closed','Unwound'].map(s =>
                       `<option ${(arb.status || 'Open') === s ? 'selected' : ''}>${s}</option>`
                     ).join('')}
                   </select></div>

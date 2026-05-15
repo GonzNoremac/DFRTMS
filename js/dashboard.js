@@ -24,6 +24,9 @@ const Dashboard = {
     }
   },
 
+  dashAucStore: '',
+  _aucSession: null,
+
   async render(container) {
     this.initState();
     container.innerHTML = `
@@ -66,7 +69,8 @@ const Dashboard = {
     onSnapshot(q, snapshot => {
       const sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const active   = sessions.find(s => s.status !== 'archived');
-      this.renderAuctionStats(active || null);
+      this._aucSession = active || null;
+      this.renderAuctionStats(this._aucSession);
     }, err => {
       console.error('Auction stats error:', err);
     });
@@ -85,13 +89,18 @@ const Dashboard = {
       return;
     }
 
-    const v          = session.vehicles;
-    const fmt        = n => n !== null && n !== undefined ? '$' + Number(n).toLocaleString() : '—';
+    // Get unique stores from session vehicles
+    const allStores = [...new Set(session.vehicles.map(v => v.store).filter(Boolean))].sort();
+
+    // Apply store filter
+    const v = this.dashAucStore
+      ? session.vehicles.filter(r => r.store === this.dashAucStore)
+      : session.vehicles;
+
     const sold       = v.filter(r => r.decision === 'auto' || r.decision === 'accepted');
     const onlineSold = v.filter(r => r.goOnline && r.onlineListing?.status === 'sold');
     const pending    = v.filter(r => r.decision === 'pending');
     const denied     = v.filter(r => r.decision === 'denied');
-    const nosale     = v.filter(r => r.decision === 'nosale');
     const online     = v.filter(r => r.goOnline);
 
     let profit = null;
@@ -107,22 +116,35 @@ const Dashboard = {
     const updated = session.lastUpdated ? `· Updated ${session.lastUpdated}` : '';
 
     el.innerHTML = `
-      <div class="inv-section-title" style="margin-top:24px">
-        Current auction
-        <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:8px">${session.label || ''} ${updated}</span>
+      <div class="inv-section-title" style="margin-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          Current auction
+          <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:8px">${session.label || ''} ${updated}</span>
+        </div>
+        ${allStores.length > 1 ? `
+        <select id="dash-auc-store" style="background:var(--bg-raised);border:1.5px solid var(--border);border-radius:var(--r-md);padding:4px 8px;font-size:12px;font-family:var(--font-sans);color:var(--text-1);outline:none">
+          <option value="">All stores</option>
+          ${allStores.map(s => `<option value="${s}" ${this.dashAucStore===s?'selected':''}>${s}</option>`).join('')}
+        </select>` : ''}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
-        <div class="auc-stat"><div class="auc-stat-val">${v.length}</div><div class="auc-stat-label">Total</div></div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px">
+        <div class="auc-stat"><div class="auc-stat-val">${v.length}</div><div class="auc-stat-label">${this.dashAucStore ? this.dashAucStore : 'Total'}</div></div>
         <div class="auc-stat auc-stat-green"><div class="auc-stat-val">${sold.length + onlineSold.length}</div><div class="auc-stat-label">Sold</div></div>
         <div class="auc-stat auc-stat-amber"><div class="auc-stat-val">${pending.length}</div><div class="auc-stat-label">Pending</div></div>
         <div class="auc-stat"><div class="auc-stat-val">${denied.length}</div><div class="auc-stat-label">Denied</div></div>
         <div class="auc-stat"><div class="auc-stat-val">${online.length}</div><div class="auc-stat-label">Online</div></div>
-        <div class="auc-stat ${profit===null?'':profit>=0?'auc-stat-green':'auc-stat-red'}" style="grid-column:span 1">
+        <div class="auc-stat ${profit===null?'':profit>=0?'auc-stat-green':'auc-stat-red'}">
           <div class="auc-stat-val" style="font-size:18px">${profit!==null?(profit>=0?'+$':'-$')+Math.abs(profit).toLocaleString():'—'}</div>
           <div class="auc-stat-label">Profit</div>
         </div>
       </div>
     `;
+
+    // Bind store dropdown after render
+    document.getElementById('dash-auc-store')?.addEventListener('change', e => {
+      this.dashAucStore = e.target.value;
+      this.renderAuctionStats(this._aucSession);
+    });
   },
 
   // ---- Firestore load ----------------------------------------
@@ -224,10 +246,9 @@ const Dashboard = {
 
     let statusPill = `<span class="status-pill pill-nodata">No data</span>`;
     if (stockToNum !== null && hasInv) {
-      const pct = stockToNum > 0 ? currentInv / stockToNum : 1;
       if (currentInv >= stockToNum)   statusPill = `<span class="status-pill pill-overstocked">Stocked</span>`;
-      else if (pct < 0.5)             statusPill = `<span class="status-pill pill-critical">Critical — buy now</span>`;
-      else if (pct < 0.8)             statusPill = `<span class="status-pill pill-low">Low — monitor closely</span>`;
+      else if (neededNum > 5)         statusPill = `<span class="status-pill pill-critical">Extremely low</span>`;
+      else if (neededNum > 1)         statusPill = `<span class="status-pill pill-low">Low</span>`;
       else                            statusPill = `<span class="status-pill pill-ok">On track</span>`;
     }
 
