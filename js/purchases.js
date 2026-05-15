@@ -368,7 +368,10 @@ const Purchases = {
     // Financial filter toggle
     document.getElementById('btn-fin-filter')?.addEventListener('click', () => {
       this.finFilterOpen = !this.finFilterOpen;
-      this.renderRows(); // re-render to show/hide panel
+      const panel = document.getElementById('fin-filter-panel');
+      const btn   = document.getElementById('btn-fin-filter');
+      if (panel) panel.classList.toggle('hidden', !this.finFilterOpen);
+      if (btn)   btn.classList.toggle('active',    this.finFilterOpen);
     });
 
     // Financial filter inputs — bind after render
