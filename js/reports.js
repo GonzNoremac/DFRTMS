@@ -202,6 +202,10 @@ const Reports = {
   },
 
   buildStoreData(store, onlineSales) {
+    // Normalize store names: strip Anderson prefix, lowercase, trim
+    const normalizeStore = s => (s || '').trim().toLowerCase().replace(/^anderson\s+/, '');
+    const storeMatch = s => !store || normalizeStore(s.store || s) === normalizeStore(store);
+
     const fmt = d => {
       if (!d) return '—';
       const [y,m,day] = d.slice(0,10).split('-');
@@ -235,8 +239,6 @@ const Reports = {
     // Money IN: online sales in range for this store
     // Auction stores have 'Anderson ' prefix (e.g. 'Anderson Toyota') while purchases just use 'Toyota'
     // Match if either equals the other, or one contains the other
-    const normalizeStore = s => (s || '').trim().toLowerCase().replace(/^anderson\s+/, '');
-    const storeMatch = s => !store || normalizeStore(s.store) === normalizeStore(store);
     const moneyIn = onlineSales
       .filter(s => storeMatch(s) && this.inRange(s.soldAt))
       .map(s => ({

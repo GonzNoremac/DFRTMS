@@ -962,22 +962,7 @@ const Purchases = {
           </div>
           <button class="btn" id="fix-serials-btn" style="white-space:nowrap">🔧 Fix serial dates in database</button>
         </div>
-        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text-1)">Strip "Anderson " from store names</div>
-            <div style="font-size:12px;color:var(--text-3);margin-top:2px">One-time migration: removes "Anderson " prefix from all purchase store fields</div>
-          </div>
-          <button class="btn" id="fix-anderson-btn" style="white-space:nowrap">🔧 Strip Anderson prefix</button>
-        </div>
-        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text-1)">Acknowledge pre-May 2025 financials</div>
-            <div style="font-size:12px;color:var(--text-3);margin-top:2px">Stamps purchasePrice: 0 on all non-ICO records before May 2025 so they don't trigger the ⚠ No financials flag</div>
-          </div>
-          <button class="btn" id="fix-old-financials-btn" style="white-space:nowrap">🔧 Run one-time migration</button>
-        </div>
-
-        <div class="import-buyer-row">
+<div class="import-buyer-row">
           <div class="import-buyer-label">Assign all imported records to buyer:</div>
           <select id="import-buyer" class="import-buyer-select">
             <option value="">— Select buyer —</option>
@@ -998,10 +983,7 @@ const Purchases = {
       .addEventListener('click', () => this.closeImportPanel());
     document.getElementById('fix-serials-btn')
       .addEventListener('click', () => this.fixSerialDates());
-    document.getElementById('fix-old-financials-btn')
-      .addEventListener('click', () => this.fixOldFinancials());
-    document.getElementById('fix-anderson-btn')
-      .addEventListener('click', () => this.fixAndersonStores());
+
 
 
     document.getElementById('import-file')
@@ -1030,7 +1012,7 @@ const Purchases = {
   },
 
   async fixAndersonStores() {
-    const btn = document.getElementById('fix-anderson-btn');
+    const btn = document.getElementById('fix-anderson-btn') || document.getElementById('tool-anderson-btn');
     const targets = this.records.filter(r =>
       r.store && /^Anderson\s+/i.test(r.store)
     );
@@ -1057,13 +1039,12 @@ const Purchases = {
   },
 
   async fixOldFinancials() {
-    const btn = document.getElementById('fix-old-financials-btn');
+    const btn = document.getElementById('fix-old-financials-btn') || document.getElementById('tool-oldfinance-btn');
     const targets = this.records.filter(r =>
       r.source !== 'ICO' &&
       (!r.purchasePrice && r.purchasePrice !== 0) &&
       (!r.date || r.date < '2025-05-01')
     );
-    console.log('Migration scan: total records:', this.records.length, 'targets:', targets.length);
     if (!targets.length) {
       Toast.show('No records to migrate — all clear', 'success');
       return;

@@ -86,6 +86,47 @@ const App = {
     document.getElementById('login-error').classList.add('hidden');
   },
 
+  openTools() {
+    const body = document.getElementById('tools-modal-body');
+    if (!body) return;
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px">Strip Anderson prefix from store names</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">Removes "Anderson " prefix from all purchase store fields in the database.</div>
+          <button class="auc-btn-secondary" id="tool-anderson-btn">🔧 Run migration</button>
+          <span id="tool-anderson-result" style="font-size:11px;margin-left:10px;color:var(--text-3)"></span>
+        </div>
+        <div style="padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px">Acknowledge pre-May 2025 financials</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">Stamps purchasePrice: 0 on non-ICO records before May 2025 to clear the No financials flag.</div>
+          <button class="auc-btn-secondary" id="tool-oldfinance-btn">🔧 Run migration</button>
+          <span id="tool-oldfinance-result" style="font-size:11px;margin-left:10px;color:var(--text-3)"></span>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px">Fix Excel serial dates</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">Converts Excel serial number dates to real dates on all purchase records.</div>
+          <button class="auc-btn-secondary" id="tool-serial-btn">🔧 Run migration</button>
+          <span id="tool-serial-result" style="font-size:11px;margin-left:10px;color:var(--text-3)"></span>
+        </div>
+      </div>`;
+    document.getElementById('tools-overlay').classList.remove('hidden');
+
+    const guard = (fn, resultId) => async () => {
+      if (typeof Purchases === 'undefined' || !Purchases.records?.length) {
+        document.getElementById(resultId).textContent = 'Go to Purchases page first to load data.';
+        return;
+      }
+      await fn();
+    };
+    document.getElementById('tool-anderson-btn').addEventListener('click',
+      guard(() => Purchases.fixAndersonStores(), 'tool-anderson-result'));
+    document.getElementById('tool-oldfinance-btn').addEventListener('click',
+      guard(() => Purchases.fixOldFinancials(), 'tool-oldfinance-result'));
+    document.getElementById('tool-serial-btn').addEventListener('click',
+      guard(() => Purchases.fixSerialDates(), 'tool-serial-result'));
+  },
+
   navigate(page) {
     // Clean up previous page's Firestore listener before navigating away
     const cleanups = { dashboard: Dashboard, purchases: Purchases, calendar: Calendar, auction: Auction, archives: Archives, reports: Reports };
