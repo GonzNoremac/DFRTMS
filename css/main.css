@@ -1718,3 +1718,12 @@ body {
 
 /* No-financials row flag */
 .p-row-nofinance .td-stock { border-left: 3px solid var(--amber) !important; }
+
+/* ---- Tools button in nav ---- */
+.btn-tools {
+  background: none; border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 5px 12px; font-size: 12px;
+  font-weight: 500; color: var(--text-2); font-family: var(--font-sans);
+  cursor: pointer; transition: all 0.12s;
+}
+.btn-tools:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-med); }
