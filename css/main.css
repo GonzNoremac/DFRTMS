@@ -1520,3 +1520,11 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
 }
+
+/* ---- No stock # indicator ---- */
+.p-row-nostock td { border-left: 3px solid var(--amber); }
+.p-filter-active {
+  background: var(--amber-bg) !important;
+  border-color: var(--amber-mid) !important;
+  color: var(--amber) !important;
+}
