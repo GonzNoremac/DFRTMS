@@ -184,6 +184,22 @@ const Reports = {
     const stores = this.storeFilter === 'all' ? STORES : [this.storeFilter];
     const onlineSales = this.getOnlineSales();
 
+    // Debug: show in output so we can see what data is found
+    const dbg = {
+      sessions: this.sessions.length,
+      sessionVehicles: this.sessions.reduce((a,s) => a + (s.vehicles||[]).length, 0),
+      onlineListings: this.sessions.reduce((a,s) => a + (s.vehicles||[]).filter(v=>v.onlineListing).length, 0),
+      soldListings: this.sessions.reduce((a,s) => a + (s.vehicles||[]).filter(v=>v.onlineListing?.status==='sold').length, 0),
+      onlineSalesFound: onlineSales.length,
+      dateRange: `${this.dateFrom} to ${this.dateTo}`,
+      salesInRange: onlineSales.filter(s => this.inRange(s.soldAt)).length,
+    };
+    console.log('Reports debug:', dbg);
+    document.getElementById('rep-output').innerHTML = `
+      <div style="background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 16px;font-family:var(--font-mono);font-size:11px;margin-bottom:16px;color:var(--text-2)">
+        <strong>Debug:</strong> ${JSON.stringify(dbg, null, 2).replace(/\n/g,'<br>').replace(/ /g,'&nbsp;')}
+      </div>`;
+
     const storeData = stores.map(store => this.buildStoreData(store, onlineSales));
     // Filter out stores with no data if showing all
     const active = this.storeFilter === 'all'

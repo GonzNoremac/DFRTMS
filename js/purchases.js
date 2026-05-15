@@ -21,6 +21,7 @@ const Purchases = {
   filterMonth:  '',
   filterNoStock: false,
   filterOpenArb: false,
+  filterNoFinance: false,
   filterMenuOpen: false,
   finFilter: {
     dateFrom: '', dateTo: '',
@@ -89,6 +90,10 @@ const Purchases = {
                 <input type="checkbox" id="p-openarb-chk" ${this.filterOpenArb?'checked':''}>
                 <span>⚖ Open arbitration</span>
               </label>
+              <label class="p-fm-check">
+                <input type="checkbox" id="p-nofinance-chk" ${this.filterNoFinance?'checked':''}>
+                <span>⚠ No financial data</span>
+              </label>
             </div>
             <div style="border-top:1px solid var(--border);padding-top:8px;text-align:right">
               <button class="btn-ghost" id="p-clear-filters" style="font-size:11px">Clear all filters</button>
@@ -108,7 +113,8 @@ const Purchases = {
         ${this.filterSource ? `<span class="p-chip">Source: ${this.filterSource}<span class="p-chip-x" data-clear="source">✕</span></span>` : ''}
         ${this.filterBuyer  ? `<span class="p-chip">Buyer: ${this.filterBuyer}  <span class="p-chip-x" data-clear="buyer">✕</span></span>`  : ''}
         ${this.filterNoStock ? `<span class="p-chip p-chip-amber">⚠ No stock # <span class="p-chip-x" data-clear="nostock">✕</span></span>` : ''}
-        ${this.filterOpenArb ? `<span class="p-chip p-chip-amber">⚖ Open arb <span class="p-chip-x" data-clear="openarb">✕</span></span>` : ''}
+        ${this.filterOpenArb   ? `<span class="p-chip p-chip-amber">⚖ Open arb <span class="p-chip-x" data-clear="openarb">✕</span></span>` : ''}
+        ${this.filterNoFinance ? `<span class="p-chip p-chip-amber">⚠ No financials <span class="p-chip-x" data-clear="nofinance">✕</span></span>` : ''}
       </div>` : ''}
 
       <div id="fin-filter-panel" class="${this.finFilterOpen ? '' : 'hidden'}">
@@ -478,7 +484,8 @@ const Purchases = {
         if (key === 'source')  { this.filterSource  = ''; }
         if (key === 'buyer')   { this.filterBuyer   = ''; }
         if (key === 'nostock') { this.filterNoStock = false; }
-        if (key === 'openarb') { this.filterOpenArb = false; }
+        if (key === 'openarb')   { this.filterOpenArb   = false; }
+        if (key === 'nofinance') { this.filterNoFinance = false; }
         this.renderRows();
       }
     };
@@ -489,10 +496,11 @@ const Purchases = {
     document.getElementById('p-source')?.addEventListener('change', e => { this.filterSource  = e.target.value;    this.renderRows(); });
     document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer   = e.target.value;    this.renderRows(); });
     document.getElementById('p-nostock-chk')?.addEventListener('change', e => { this.filterNoStock = e.target.checked; this.renderRows(); });
-    document.getElementById('p-openarb-chk')?.addEventListener('change', e => { this.filterOpenArb = e.target.checked; this.renderRows(); });
+    document.getElementById('p-openarb-chk')?.addEventListener('change',   e => { this.filterOpenArb   = e.target.checked; this.renderRows(); });
+    document.getElementById('p-nofinance-chk')?.addEventListener('change', e => { this.filterNoFinance = e.target.checked; this.renderRows(); });
     document.getElementById('p-clear-filters')?.addEventListener('click', () => {
       this.filterStore = ''; this.filterSource = ''; this.filterBuyer = '';
-      this.filterNoStock = false; this.filterOpenArb = false;
+      this.filterNoStock = false; this.filterOpenArb = false; this.filterNoFinance = false;
       this.filterMenuOpen = false;
       this.renderRows();
     });
@@ -511,7 +519,7 @@ const Purchases = {
 
   _anyBasicFilter() {
     return !!(this.filterStore || this.filterSource || this.filterBuyer ||
-              this.filterNoStock || this.filterOpenArb);
+              this.filterNoStock || this.filterOpenArb || this.filterNoFinance);
   },
 
   _finFilterActive() {
@@ -550,7 +558,12 @@ const Purchases = {
       (r.model  || '').toLowerCase().includes(q)
     );
     if (this.filterNoStock) data = data.filter(r => !r.stock || r.stock.trim() === '');
-    if (this.filterOpenArb)  data = data.filter(r => r.arb && r.arb.status === 'Open');
+    if (this.filterOpenArb)   data = data.filter(r => r.arb && r.arb.status === 'Open');
+    if (this.filterNoFinance) data = data.filter(r =>
+      r.source !== 'ICO' &&
+      (!r.purchasePrice && r.purchasePrice !== 0) &&
+      (r.date || '') >= '2025-05-01'
+    );
     if (this.filterMonth)   data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
 
     // Financial filters
@@ -619,9 +632,12 @@ const Purchases = {
     const isExpanded = this.expandedId === r.id;
     const hasArb     = r.arb !== null && r.arb !== undefined;
     const srcClass   = 'src-' + (r.source || '').replace(/\s/g, '');
-    const noStock  = !r.stock || r.stock.trim() === '';
-    const unwound  = r.arb?.status === 'Unwound';
-    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}${unwound ? ' p-row-unwound' : ''}" data-id="${r.id}">
+    const noStock     = !r.stock || r.stock.trim() === '';
+    const unwound     = r.arb?.status === 'Unwound';
+    const needsFinance = r.source !== 'ICO'
+      && (!r.purchasePrice && r.purchasePrice !== 0)
+      && (r.date || '') >= '2025-05-01';
+    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}${unwound ? ' p-row-unwound' : ''}${needsFinance ? ' p-row-nofinance' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
       <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
       <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || '<span style="color:var(--amber);font-size:10px;font-weight:600">⚠ No stock #</span>'}</td>
@@ -632,7 +648,7 @@ const Purchases = {
       <td><span class="src-badge ${srcClass}">${r.source || ''}</span></td>
       <td style="color:var(--text-2);font-size:12px">${r.store || '—'}</td>
       <td style="font-size:12px;color:var(--text-2)">${r.buyer || '—'}</td>
-      <td style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.notes || ''}">${unwound ? '<span class="arb-status-badge arb-Unwound">Unwound</span>' : (r.notes || '')}</td>
+      <td style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.notes || ''}">${unwound ? '<span class="arb-status-badge arb-Unwound">Unwound</span>' : needsFinance ? '<span style="color:var(--amber);font-size:10px;font-weight:600">⚠ No financials</span>' : (r.notes || '')}</td>
     </tr>`;
   },
 
@@ -946,6 +962,14 @@ const Purchases = {
           </div>
           <button class="btn" id="fix-serials-btn" style="white-space:nowrap">🔧 Fix serial dates in database</button>
         </div>
+        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text-1)">Acknowledge pre-May 2025 financials</div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:2px">Stamps purchasePrice: 0 on all non-ICO records before May 2025 so they don't trigger the ⚠ No financials flag</div>
+          </div>
+          <button class="btn" id="fix-old-financials-btn" style="white-space:nowrap">🔧 Run one-time migration</button>
+        </div>
+
         <div class="import-buyer-row">
           <div class="import-buyer-label">Assign all imported records to buyer:</div>
           <select id="import-buyer" class="import-buyer-select">
@@ -967,6 +991,9 @@ const Purchases = {
       .addEventListener('click', () => this.closeImportPanel());
     document.getElementById('fix-serials-btn')
       .addEventListener('click', () => this.fixSerialDates());
+    document.getElementById('fix-old-financials-btn')
+      .addEventListener('click', () => this.fixOldFinancials());
+
 
     document.getElementById('import-file')
       .addEventListener('change', e => {
@@ -991,6 +1018,34 @@ const Purchases = {
     const panel = document.getElementById('import-panel');
     panel.classList.add('hidden');
     panel.innerHTML = '';
+  },
+
+  async fixOldFinancials() {
+    const btn = document.getElementById('fix-old-financials-btn');
+    const targets = this.records.filter(r =>
+      r.source !== 'ICO' &&
+      (!r.purchasePrice && r.purchasePrice !== 0) &&
+      (r.date || '') < '2025-05-01'
+    );
+    if (!targets.length) {
+      Toast.show('No records to migrate — all clear', 'success');
+      return;
+    }
+    if (!confirm(`Found ${targets.length} pre-May 2025 non-ICO record${targets.length>1?'s':''} with no financial data.\n\nStamp purchasePrice: 0 on all of them to clear the ⚠ flag?`)) return;
+
+    btn.textContent = 'Migrating…'; btn.disabled = true;
+    let done = 0, failed = 0;
+    for (const r of targets) {
+      try {
+        await updateDoc(doc(db, 'purchases', r.id), { purchasePrice: 0 });
+        r.purchasePrice = 0;
+        done++;
+      } catch(e) { console.error(e); failed++; }
+    }
+    btn.textContent = '🔧 Run one-time migration'; btn.disabled = false;
+    if (failed === 0) Toast.show(`Migrated ${done} records`, 'success');
+    else Toast.show(`${done} migrated, ${failed} failed`, 'error');
+    this.renderRows();
   },
 
   async fixSerialDates() {

@@ -643,11 +643,13 @@ const Auction = {
 
       if (ol.status === 'sold') {
         return `<tr class="auc-row" style="opacity:0.65;border-left:3px solid var(--green)">
-          <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${v.stock}</td>
+          <td style="font-family:var(--font-mono);font-size:11px">
+            <div style="font-weight:600">${v.stock}</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px">${v.store||'—'}</div>
+          </td>
           <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
               <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div>
               ${ol.vin ? `<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;margin-top:2px">${ol.vin}</div>` : ''}</td>
-          <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
           <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
             <span style="color:var(--text-2);font-weight:600">${fmt(ol.cost)}</span><br>
             <span style="color:var(--text-3);font-size:10px">${fmt(ol.book)}</span><br>
@@ -662,11 +664,13 @@ const Auction = {
       }
 
       return `<tr class="auc-row">
-        <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${v.stock}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">
+          <div style="font-weight:600">${v.stock}</div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px">${v.store||'—'}</div>
+        </td>
         <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
             <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div>
             ${ol.vin ? `<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;margin-top:2px">${ol.vin}</div>` : ''}</td>
-        <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
         <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
           <span style="color:var(--text-2);font-weight:600">${fmt(ol.cost)}</span><br>
           <span style="color:var(--text-3);font-size:10px">${fmt(ol.book)}</span><br>
@@ -737,7 +741,7 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th>Stock #</th><th>Vehicle</th><th>Store</th>
+            <th>Stock # / Store</th><th>Vehicle</th>
             <th>Cost / Book / MMR</th>
             <th>Auction high bid</th>
             <th>Reserve / Bids</th>
