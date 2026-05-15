@@ -14,6 +14,7 @@ import Purchases from './purchases.js';
 import Calendar  from './calendar.js';
 import Auction   from './auction.js';
 import Archives  from './archives.js';
+import Reports   from './reports.js';
 import { STORES, SOURCES, BUYERS, Toast } from './constants.js';
 
 const App = {
@@ -87,7 +88,7 @@ const App = {
 
   navigate(page) {
     // Clean up previous page's Firestore listener before navigating away
-    const cleanups = { dashboard: Dashboard, purchases: Purchases, calendar: Calendar, auction: Auction };
+    const cleanups = { dashboard: Dashboard, purchases: Purchases, calendar: Calendar, auction: Auction, archives: Archives, reports: Reports };
     if (this.currentPage && cleanups[this.currentPage]) {
       const prev = cleanups[this.currentPage];
       if (prev._unsubscribe) { prev._unsubscribe(); prev._unsubscribe = null; }
@@ -103,6 +104,7 @@ const App = {
     else if (page === 'calendar')  Calendar.render(content);
     else if (page === 'auction')   Auction.render(content);
     else if (page === 'archives')  Archives.render(content);
+    else if (page === 'reports')   Reports.render(content);
   },
 
   authError(code) {

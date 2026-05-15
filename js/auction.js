@@ -255,6 +255,7 @@ const Auction = {
             status:        'active',
             soldOn:        null,
             soldPrice:     null,
+            soldAt:        null,
           };
         }
       });
@@ -523,7 +524,7 @@ const Auction = {
         cost: v.cost||null, book: v.book||null, mmr: v.mmr||null,
         auctionHighBid: v.maxBid||null,
         openlane: null, acv: null, manheim: null, onlineReserve: null,
-        status: 'active', soldOn: null, soldPrice: null,
+        status: 'active', soldOn: null, soldPrice: null, soldAt: null,
       };
     } else if (!checked) {
       v.onlineListing = null;
@@ -759,6 +760,7 @@ const Auction = {
     v.onlineListing.status    = 'sold';
     v.onlineListing.soldOn    = platform;
     v.onlineListing.soldPrice = price;
+    v.onlineListing.soldAt    = new Date().toISOString().slice(0,10);
     this.saveSession();
     Toast.show(`${stock} sold on ${platform}`, 'success');
     this.renderSession(document.getElementById('auc-workspace'));
@@ -770,6 +772,7 @@ const Auction = {
     v.onlineListing.status    = 'active';
     v.onlineListing.soldOn    = null;
     v.onlineListing.soldPrice = null;
+    v.onlineListing.soldAt    = null;
     this.saveSession();
     Toast.show(`${stock} marked unsold`);
     this.renderSession(document.getElementById('auc-workspace'));
@@ -1127,6 +1130,7 @@ const Auction = {
             profit:          profit,
             status:          ol.status === 'sold' ? `Sold — ${ol.soldOn}` : 'Active',
             soldPrice:       ol.soldPrice    || null,
+            soldAt:          ol.soldAt       || null,
           };
         });
 

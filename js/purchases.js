@@ -216,40 +216,27 @@ const Purchases = {
   },
 
   subscribeFirestore() {
-    // Try ordered query first; fall back to unordered if index missing
-    const tryQuery = (ordered) => {
-      const q = ordered
-        ? query(collection(db, 'purchases'), orderBy('date', 'desc'))
-        : collection(db, 'purchases');
+    const q = collection(db, 'purchases');
+    this._unsubscribe = onSnapshot(q,
+      snapshot => {
+        // Sort client-side — no index dependency
+        this.records = snapshot.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-      this._unsubscribe = onSnapshot(q,
-        snapshot => {
-          this.records = snapshot.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-          const monthSel = document.getElementById('p-month');
-          if (monthSel) {
-            const current = this.filterMonth;
-            monthSel.innerHTML = '<option value="">All months</option>' +
-              this.getMonths().map(m => `<option value="${m.val}"${current===m.val?' selected':''}>${m.label}</option>`).join('');
-          }
-          this.renderRows();
-        },
-        err => {
-          if (ordered && (err.code === 'failed-precondition' || err.message?.includes('index'))) {
-            // Index not created yet — fall back to unordered
-            console.warn('Purchases index missing, falling back to unordered query');
-            if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
-            tryQuery(false);
-          } else {
-            console.error('Firestore error:', err);
-            Toast.show('Could not load purchases', 'error');
-          }
+        const monthSel = document.getElementById('p-month');
+        if (monthSel) {
+          const current = this.filterMonth;
+          monthSel.innerHTML = '<option value="">All months</option>' +
+            this.getMonths().map(m => `<option value="${m.val}"${current===m.val?' selected':''}>${m.label}</option>`).join('');
         }
-      );
-    };
-    tryQuery(true);
+        this.renderRows();
+      },
+      err => {
+        console.error('Firestore error:', err);
+        Toast.show('Could not load purchases', 'error');
+      }
+    );
   },
 
   // ---- Quick add ---------------------------------------------
@@ -632,7 +619,8 @@ const Purchases = {
     const isExpanded = this.expandedId === r.id;
     const hasArb     = r.arb !== null && r.arb !== undefined;
     const srcClass   = 'src-' + (r.source || '').replace(/\s/g, '');
-    const noStock = !r.stock || r.stock.trim() === '';
+    const noStock  = !r.stock || r.stock.trim() === '';
+    const unwound  = r.arb?.status === 'Unwound';
     return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}${unwound ? ' p-row-unwound' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
       <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
@@ -753,21 +741,25 @@ const Purchases = {
                 <div class="detail-field"><label>Issue</label>
                   <input type="text" data-arb-field="issue" value="${arb.issue || ''}" placeholder="e.g. Undisclosed engine misfire"></div>
               </div>
-              <div class="detail-fields" style="margin-bottom:10px">
+              <div class="detail-fields one" style="margin-bottom:10px">
                 <div class="detail-field"><label>Amount requested ($)</label>
                   <input type="number" data-arb-field="amount" value="${arb.amount || ''}" placeholder="0" style="-moz-appearance:textfield"></div>
-                <div class="detail-field"><label>Amount received ($)</label>
-                  <input type="number" data-arb-field="amountReceived" value="${arb.amountReceived || ''}" placeholder="0" style="-moz-appearance:textfield" id="fp-arbreceived-${r.id}"></div>
               </div>
               <div class="detail-fields" style="margin-bottom:10px">
                 <div class="detail-field"><label>Date filed</label>
                   <input type="date" data-arb-field="dateFiled" value="${arb.dateFiled || today()}"></div>
                 <div class="detail-field"><label>Status</label>
-                  <select data-arb-field="status">
+                  <select data-arb-field="status" id="arb-status-${r.id}">
                     ${['Open','Won','Lost','Closed','Unwound'].map(s =>
                       `<option ${(arb.status || 'Open') === s ? 'selected' : ''}>${s}</option>`
                     ).join('')}
                   </select></div>
+              </div>
+              <div class="detail-fields" id="arb-unwind-row-${r.id}" style="margin-bottom:10px;${arb.status === 'Unwound' ? '' : 'display:none'}">
+                <div class="detail-field"><label>Date unwound</label>
+                  <input type="date" data-arb-field="dateUnwound" value="${arb.dateUnwound || today()}" id="arb-dateunwound-${r.id}"></div>
+                <div class="detail-field"><label>Amount returned ($)</label>
+                  <input type="number" data-arb-field="amountReceived" value="${arb.amountReceived || ''}" placeholder="0" style="-moz-appearance:textfield" id="fp-arbreceived-${r.id}"></div>
               </div>
               <div class="detail-fields one">
                 <div class="detail-field"><label>Resolution notes</label>
@@ -843,7 +835,7 @@ const Purchases = {
     if (toggle) {
       toggle.addEventListener('change', e => {
         if (e.target.checked) {
-          pending.arb = { issue: '', amount: '', dateFiled: today(), status: 'Open', resolution: '' };
+          pending.arb = { issue: '', amount: '', amountReceived: '', dateFiled: today(), dateUnwound: '', status: 'Open', resolution: '' };
           arbFields.classList.add('visible');
           arbLabel.textContent = 'Case open';
         } else {
@@ -860,6 +852,16 @@ const Purchases = {
         const currentArb = pending.arb !== undefined ? pending.arb : { ...(rec.arb || {}) };
         if (currentArb) {
           const field = e.target.dataset.arbField;
+          // Show/hide unwind date row based on status selection
+          if (field === 'status') {
+            const unwindRow = document.getElementById(`arb-unwind-row-${id}`);
+            const unwindDate = document.getElementById(`arb-dateunwound-${id}`);
+            if (unwindRow) unwindRow.style.display = e.target.value === 'Unwound' ? '' : 'none';
+            if (unwindDate && e.target.value === 'Unwound' && !unwindDate.value) {
+              unwindDate.value = today();
+              currentArb.dateUnwound = today();
+            }
+          }
           currentArb[field] = ['amount','amountReceived'].includes(field)
             ? (parseFloat(e.target.value) || '')
             : e.target.value;
@@ -1348,6 +1350,7 @@ Purchases.printPDF = function(r) {
       <div class="field"><label>Amount requested</label><p>${fmt(arb.amount)}</p></div>
       <div class="field"><label>Amount received</label><p>${fmt(arb.amountReceived)}</p></div>
       <div class="field"><label>Date filed</label><p>${arb.dateFiled || '—'}</p></div>
+      ${arb.dateUnwound ? `<div class="field"><label>Date unwound</label><p>${arb.dateUnwound}</p></div>` : ''}
       <div class="field"><label>Resolution</label><p>${arb.resolution || '—'}</p></div>
     </div>
   </div>` : ''}
