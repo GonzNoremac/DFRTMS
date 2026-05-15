@@ -78,6 +78,17 @@ const Reports = {
     document.getElementById('rep-pdf').addEventListener('click', () => this.printPDF());
 
     this.subscribeAll();
+
+    // Show loading state until all sources are ready
+    const checkReady = setInterval(() => {
+      if (this.loaded.purchases && this.loaded.sessions && this.loaded.archives) {
+        clearInterval(checkReady);
+        const btn = document.getElementById('rep-generate');
+        if (btn) btn.textContent = 'Generate report';
+      }
+    }, 200);
+    const btn = document.getElementById('rep-generate');
+    if (btn) btn.textContent = 'Loading data…';
   },
 
   subscribeAll() {
@@ -165,6 +176,9 @@ const Reports = {
   generate() {
     if (!this.dateFrom || !this.dateTo) {
       Toast.show('Select a date range first', 'error'); return;
+    }
+    if (!this.loaded.purchases || !this.loaded.sessions || !this.loaded.archives) {
+      Toast.show('Data still loading — try again in a moment', 'error'); return;
     }
 
     const stores = this.storeFilter === 'all' ? STORES : [this.storeFilter];

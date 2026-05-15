@@ -287,10 +287,19 @@ const Auction = {
         if (!btn) return;
         const action   = btn.dataset.action;
         const idx      = parseInt(btn.dataset.stock);
-        const filtered = this.wholesaleView
-          ? this.vehicles.filter(v => v.goOnline && v.onlineListing)
-          : this.getFiltered();
-        const rec      = filtered[idx];
+        let filtered;
+        if (this.wholesaleView) {
+          // Must match the same order as renderWholesale: wsActive then wsSold
+          const wsFiltered = this.wsFilterStore
+            ? this.vehicles.filter(v => v.goOnline && v.onlineListing && v.store === this.wsFilterStore)
+            : this.vehicles.filter(v => v.goOnline && v.onlineListing);
+          const wsActive = wsFiltered.filter(v => v.onlineListing.status !== 'sold');
+          const wsSold   = wsFiltered.filter(v => v.onlineListing.status === 'sold');
+          filtered = [...wsActive, ...wsSold];
+        } else {
+          filtered = this.getFiltered();
+        }
+        const rec = filtered[idx];
         if (!rec) return;
         if (action === 'accept')    this.setDecision(rec.stock, 'accepted');
         if (action === 'deny')      this.setDecision(rec.stock, 'denied');
