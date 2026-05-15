@@ -20,47 +20,29 @@ const Purchases = {
   filterBuyer:  '',
   filterMonth:  '',
   filterNoStock: false,
+  finFilter: {
+    dateFrom: '', dateTo: '',
+    priceMin: '', priceMax: '',
+    transportMin: '', transportMax: '',
+    feesMin: '', feesMax: '',
+    totalMin: '', totalMax: '',
+    arbMin: '', arbMax: '',
+  },
+  finFilterOpen: false,
   searchQ:      '',
 
   // ---- Render ------------------------------------------------
   render(container) {
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
+    window.Purchases = this;
 
     container.innerHTML = `
-      <div class="page-header">
-        <div class="page-title">All Purchases</div>
-        <div class="page-sub">Log and track every vehicle acquisition.</div>
-      </div>
-
-      <div class="quick-add">
-        <div class="quick-add-label">Quick add</div>
-        <div class="quick-add-fields">
-          <div class="qa-group"><label>Date</label>
-            <input type="date" id="qa-date" value="${today()}"></div>
-          <div class="qa-group"><label>Stock #</label>
-            <input type="text" id="qa-stock" placeholder="Z3490" autocomplete="off"></div>
-          <div class="qa-group"><label>Year</label>
-            <input type="number" id="qa-year" placeholder="${new Date().getFullYear()}" min="1990" max="2035" style="-moz-appearance:textfield"></div>
-          <div class="qa-group"><label>Make</label>
-            <input type="text" id="qa-make" placeholder="Toyota" autocomplete="off"></div>
-          <div class="qa-group"><label>Model</label>
-            <input type="text" id="qa-model" placeholder="Tacoma" autocomplete="off"></div>
-          <div class="qa-group"><label>VIN</label>
-            <input type="text" id="qa-vin" placeholder="17-char VIN" maxlength="17" autocomplete="off" style="text-transform:uppercase"></div>
-          <div class="qa-group"><label>Source</label>
-            <select id="qa-source">${SOURCES.map(s => `<option>${s}</option>`).join('')}</select></div>
-          <div class="qa-group"><label>Store</label>
-            <select id="qa-store">
-              <option value="">— Store —</option>
-              ${STORES.map(s => `<option>${s}</option>`).join('')}
-            </select></div>
-          <div class="qa-group"><label>Buyer</label>
-            <select id="qa-buyer">
-              <option value="">— Buyer —</option>
-              ${BUYERS.map(b => `<option>${b}</option>`).join('')}
-            </select></div>
-          <button class="qa-submit" id="qa-submit">Add</button>
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">All Purchases</div>
+          <div class="page-sub">Log and track every vehicle acquisition.</div>
         </div>
+        <button class="auc-btn-primary" id="btn-add-purchase">+ Add purchase</button>
       </div>
 
       <div class="filter-bar">
@@ -81,8 +63,67 @@ const Purchases = {
           <option value="">All buyers</option>
           ${BUYERS.map(b => `<option value="${b}" ${this.filterBuyer === b ? 'selected' : ''}>${b}</option>`).join('')}
         </select>
+        <button class="btn-fin-filter${this.finFilterOpen ? ' active' : ''}" id="btn-fin-filter">
+          ⊞ Financials${this._finFilterActive() ? ' <span class="fin-filter-dot"></span>' : ''}
+        </button>
         <span class="record-count" id="p-count"></span>
         <button class="btn-import" id="btn-import">⬆ Import CSV</button>
+      </div>
+
+      <div id="fin-filter-panel" class="${this.finFilterOpen ? '' : 'hidden'}">
+        <div class="fin-filter-grid">
+          <div class="fin-filter-group">
+            <div class="fin-filter-label">Date range</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="date" class="fin-input" id="ff-dateFrom" value="${this.finFilter.dateFrom}" placeholder="From">
+              <span style="color:var(--text-4);font-size:11px">to</span>
+              <input type="date" class="fin-input" id="ff-dateTo"   value="${this.finFilter.dateTo}"   placeholder="To">
+            </div>
+          </div>
+          <div class="fin-filter-group">
+            <div class="fin-filter-label">Purchase price ($)</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="fin-input" id="ff-priceMin" value="${this.finFilter.priceMin}" placeholder="Min" style="-moz-appearance:textfield">
+              <span style="color:var(--text-4);font-size:11px">–</span>
+              <input type="number" class="fin-input" id="ff-priceMax" value="${this.finFilter.priceMax}" placeholder="Max" style="-moz-appearance:textfield">
+            </div>
+          </div>
+          <div class="fin-filter-group">
+            <div class="fin-filter-label">Transport ($)</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="fin-input" id="ff-transportMin" value="${this.finFilter.transportMin}" placeholder="Min" style="-moz-appearance:textfield">
+              <span style="color:var(--text-4);font-size:11px">–</span>
+              <input type="number" class="fin-input" id="ff-transportMax" value="${this.finFilter.transportMax}" placeholder="Max" style="-moz-appearance:textfield">
+            </div>
+          </div>
+          <div class="fin-filter-group">
+            <div class="fin-filter-label">Fees ($)</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="fin-input" id="ff-feesMin" value="${this.finFilter.feesMin}" placeholder="Min" style="-moz-appearance:textfield">
+              <span style="color:var(--text-4);font-size:11px">–</span>
+              <input type="number" class="fin-input" id="ff-feesMax" value="${this.finFilter.feesMax}" placeholder="Max" style="-moz-appearance:textfield">
+            </div>
+          </div>
+          <div class="fin-filter-group">
+            <div class="fin-filter-label">Total cost ($)</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="fin-input" id="ff-totalMin" value="${this.finFilter.totalMin}" placeholder="Min" style="-moz-appearance:textfield">
+              <span style="color:var(--text-4);font-size:11px">–</span>
+              <input type="number" class="fin-input" id="ff-totalMax" value="${this.finFilter.totalMax}" placeholder="Max" style="-moz-appearance:textfield">
+            </div>
+          </div>
+          <div class="fin-filter-group">
+            <div class="fin-filter-label">Arb received ($)</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="fin-input" id="ff-arbMin" value="${this.finFilter.arbMin}" placeholder="Min" style="-moz-appearance:textfield">
+              <span style="color:var(--text-4);font-size:11px">–</span>
+              <input type="number" class="fin-input" id="ff-arbMax" value="${this.finFilter.arbMax}" placeholder="Max" style="-moz-appearance:textfield">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:10px">
+          <button class="btn-ghost" id="ff-clear">Clear financial filters</button>
+        </div>
       </div>
 
       <div id="import-panel" class="import-panel hidden"></div>
@@ -93,8 +134,7 @@ const Purchases = {
             <th style="width:28px"></th>
             <th data-col="date">Date</th>
             <th data-col="stock">Stock #</th>
-            <th data-col="make">Vehicle</th>
-            <th>VIN</th>
+            <th data-col="make">Vehicle / VIN</th>
             <th data-col="source">Source</th>
             <th data-col="store">Store</th>
             <th data-col="buyer">Buyer</th>
@@ -107,7 +147,7 @@ const Purchases = {
       </div>
     `;
 
-    this.bindQuickAdd();
+    document.getElementById('btn-add-purchase').addEventListener('click', () => this.openAddModal());
     this.bindFilters();
     this.bindTableSort();
     this.bindImport();
@@ -156,90 +196,205 @@ const Purchases = {
   },
 
   // ---- Quick add ---------------------------------------------
-  async submitQuickAdd() {
-    const stock = document.getElementById('qa-stock').value.trim();
-    const store = document.getElementById('qa-store').value;
-    const buyer = document.getElementById('qa-buyer').value;
+  openAddModal() {
+    let overlay = document.getElementById('p-add-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'p-add-overlay';
+      overlay.className = 'cal-modal-overlay';
+      overlay.addEventListener('click', e => { if (e.target === overlay) Purchases.closeAddModal(); });
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="cal-modal" style="width:620px;max-width:calc(100vw - 32px)">
+        <div class="cal-modal-header">
+          <div class="cal-modal-title">Add purchase</div>
+          <button class="cal-modal-close" onclick="Purchases.closeAddModal()">✕</button>
+        </div>
+        <div class="cal-modal-body">
+          <div class="p-add-grid">
+            <div class="p-add-section-title" style="grid-column:1/-1">Vehicle info</div>
+            <div class="p-add-field">
+              <label>Date</label>
+              <input type="date" id="pa-date" value="${today()}" tabindex="1">
+            </div>
+            <div class="p-add-field">
+              <label>Stock # <span style="color:var(--text-4);font-weight:400">(optional)</span></label>
+              <input type="text" id="pa-stock" placeholder="Z3490" autocomplete="off" tabindex="2">
+            </div>
+            <div class="p-add-field">
+              <label>Year</label>
+              <input type="number" id="pa-year" placeholder="${new Date().getFullYear()}" min="1990" max="2035" style="-moz-appearance:textfield" tabindex="3">
+            </div>
+            <div class="p-add-field">
+              <label>Make</label>
+              <input type="text" id="pa-make" placeholder="Toyota" autocomplete="off" tabindex="4">
+            </div>
+            <div class="p-add-field">
+              <label>Model</label>
+              <input type="text" id="pa-model" placeholder="Tacoma" autocomplete="off" tabindex="5">
+            </div>
+            <div class="p-add-field">
+              <label>VIN</label>
+              <input type="text" id="pa-vin" placeholder="17-char VIN" maxlength="17" autocomplete="off"
+                style="text-transform:uppercase;font-family:var(--font-mono)" tabindex="6">
+            </div>
+            <div class="p-add-field">
+              <label>Source</label>
+              <select id="pa-source" tabindex="7">
+                ${SOURCES.map(s => `<option>${s}</option>`).join('')}
+              </select>
+            </div>
+            <div class="p-add-field">
+              <label>Store</label>
+              <select id="pa-store" tabindex="8">
+                <option value="">— Store —</option>
+                ${STORES.map(s => `<option>${s}</option>`).join('')}
+              </select>
+            </div>
+            <div class="p-add-field">
+              <label>Buyer</label>
+              <select id="pa-buyer" tabindex="9">
+                <option value="">— Buyer —</option>
+                ${BUYERS.map(b => `<option>${b}</option>`).join('')}
+              </select>
+            </div>
+            <div class="p-add-section-title" style="grid-column:1/-1;margin-top:8px">Cost breakdown</div>
+            <div class="p-add-field">
+              <label>Purchase price ($)</label>
+              <input type="number" id="pa-price" placeholder="0" style="-moz-appearance:textfield" tabindex="10">
+            </div>
+            <div class="p-add-field">
+              <label>Transport ($)</label>
+              <input type="number" id="pa-transport" placeholder="0" style="-moz-appearance:textfield" tabindex="11">
+            </div>
+            <div class="p-add-field">
+              <label>Fees ($)</label>
+              <input type="number" id="pa-fees" placeholder="0" style="-moz-appearance:textfield" tabindex="12">
+            </div>
+            <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:10px 0 0;border-top:1px solid var(--border);margin-top:4px">
+              <div style="font-size:13px;font-weight:600;color:var(--text-2)">
+                Total cost: <span id="pa-total" style="color:var(--text-1);font-family:var(--font-mono)">—</span>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="auc-btn-primary" id="pa-save" tabindex="13">Save purchase</button>
+                <button class="auc-btn-secondary" onclick="Purchases.closeAddModal()" tabindex="14">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    overlay.classList.remove('hidden');
+    setTimeout(() => document.getElementById('pa-date')?.focus(), 50);
 
-    if (!store) { Toast.show('Select a store', 'error');      document.getElementById('qa-store').focus(); return; }
-    if (!buyer) { Toast.show('Select a buyer', 'error');      document.getElementById('qa-buyer').focus(); return; }
+    ['pa-price','pa-transport','pa-fees'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        const p = parseFloat(document.getElementById('pa-price')?.value)     || 0;
+        const t = parseFloat(document.getElementById('pa-transport')?.value) || 0;
+        const f = parseFloat(document.getElementById('pa-fees')?.value)      || 0;
+        const total = p + t + f;
+        const el = document.getElementById('pa-total');
+        if (el) el.textContent = total > 0 ? '$' + total.toLocaleString() : '—';
+      });
+    });
 
-    const btn = document.getElementById('qa-submit');
-    btn.textContent = '…';
-    btn.disabled = true;
+    document.getElementById('pa-vin')?.addEventListener('input', e => {
+      e.target.value = e.target.value.toUpperCase();
+    });
 
+    document.getElementById('pa-fees')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); Purchases.submitAddModal(); }
+    });
+
+    document.getElementById('pa-save')?.addEventListener('click', () => Purchases.submitAddModal());
+  },
+
+  closeAddModal() {
+    const el = document.getElementById('p-add-overlay');
+    if (el) el.classList.add('hidden');
+  },
+
+  async submitAddModal() {
+    const store = document.getElementById('pa-store')?.value;
+    const buyer = document.getElementById('pa-buyer')?.value;
+    if (!store) { Toast.show('Select a store', 'error'); document.getElementById('pa-store')?.focus(); return; }
+    if (!buyer) { Toast.show('Select a buyer', 'error'); document.getElementById('pa-buyer')?.focus(); return; }
+
+    // VIN duplicate check
+    const vinVal = document.getElementById('pa-vin')?.value.trim().toUpperCase() || '';
+    if (vinVal && vinVal.length > 3) {
+      const dup = this.records.find(r => (r.vin || '').toUpperCase() === vinVal);
+      if (dup) {
+        const go = confirm(`⚠ VIN ${vinVal} already exists in the database\n(${dup.year} ${dup.make} ${dup.model} — Stock: ${dup.stock || 'no stock #'})\n\nSave anyway?`);
+        if (!go) return;
+      }
+    }
+
+    const btn = document.getElementById('pa-save');
+    if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
+    const stock = document.getElementById('pa-stock')?.value.trim() || '';
     try {
       await addDoc(collection(db, 'purchases'), {
-        date:      document.getElementById('qa-date').value,
+        date:          document.getElementById('pa-date')?.value || '',
         stock,
-        year:      parseInt(document.getElementById('qa-year').value) || '',
-        make:      document.getElementById('qa-make').value.trim(),
-        model:     document.getElementById('qa-model').value.trim(),
-        vin:       document.getElementById('qa-vin').value.trim().toUpperCase(),
-        source:    document.getElementById('qa-source').value,
+        year:          parseInt(document.getElementById('pa-year')?.value) || '',
+        make:          document.getElementById('pa-make')?.value.trim() || '',
+        model:         document.getElementById('pa-model')?.value.trim() || '',
+        vin:           document.getElementById('pa-vin')?.value.trim().toUpperCase() || '',
+        source:        document.getElementById('pa-source')?.value || '',
         store,
         buyer,
-        notes:     '',
-        arb:       null,
-        createdAt: new Date().toISOString(),
+        purchasePrice: parseFloat(document.getElementById('pa-price')?.value)     || null,
+        transport:     parseFloat(document.getElementById('pa-transport')?.value) || null,
+        fees:          parseFloat(document.getElementById('pa-fees')?.value)      || null,
+        notes:         '',
+        arb:           null,
+        createdAt:     new Date().toISOString(),
       });
-      Toast.show(`Added ${stock}`, 'success');
-      ['qa-stock','qa-year','qa-make','qa-model','qa-vin'].forEach(id => {
-        document.getElementById(id).value = '';
-      });
-      document.getElementById('qa-stock').focus();
+      Toast.show(`Purchase added${stock ? ' — ' + stock : ''}`, 'success');
+      this.closeAddModal();
     } catch(e) {
       console.error(e);
       Toast.show('Failed to save — check connection', 'error');
+      if (btn) { btn.textContent = 'Save purchase'; btn.disabled = false; }
     }
-    btn.textContent = 'Add';
-    btn.disabled = false;
-  },
-
-  // ---- Save / delete -----------------------------------------
-  async saveRecord(id, changes) {
-    try {
-      await updateDoc(doc(db, 'purchases', id), changes);
-      Toast.show('Saved', 'success');
-    } catch(e) {
-      console.error(e);
-      Toast.show('Save failed', 'error');
-    }
-  },
-
-  async deleteRecord(id) {
-    if (!confirm('Delete this purchase? This cannot be undone.')) return;
-    try {
-      await deleteDoc(doc(db, 'purchases', id));
-      this.expandedId = null;
-      Toast.show('Record deleted');
-    } catch(e) {
-      console.error(e);
-      Toast.show('Delete failed', 'error');
-    }
-  },
-
-  // ---- Filters & sort ----------------------------------------
-  bindQuickAdd() {
-    const qaInputs = Array.from(document.querySelectorAll('.quick-add-fields input, .quick-add-fields select'));
-    qaInputs.forEach((el, i) => {
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          if (i === qaInputs.length - 1) this.submitQuickAdd();
-          else qaInputs[i + 1].focus();
-        }
-      });
-    });
-    document.getElementById('qa-vin').addEventListener('input', e => {
-      e.target.value = e.target.value.toUpperCase();
-    });
-    document.getElementById('qa-submit').addEventListener('click', () => this.submitQuickAdd());
   },
 
   bindFilters() {
     document.getElementById('p-search').addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
     document.getElementById('p-month').addEventListener('change',  e => { this.filterMonth  = e.target.value; this.renderRows(); });
+
+    // Financial filter toggle
+    document.getElementById('btn-fin-filter')?.addEventListener('click', () => {
+      this.finFilterOpen = !this.finFilterOpen;
+      this.renderRows(); // re-render to show/hide panel
+    });
+
+    // Financial filter inputs — bind after render
+    const ffBind = (id, key) => {
+      document.getElementById(id)?.addEventListener('input', e => {
+        this.finFilter[key] = e.target.value;
+        this.renderRows();
+      });
+    };
+    ffBind('ff-dateFrom',    'dateFrom');
+    ffBind('ff-dateTo',      'dateTo');
+    ffBind('ff-priceMin',    'priceMin');    ffBind('ff-priceMax',    'priceMax');
+    ffBind('ff-transportMin','transportMin'); ffBind('ff-transportMax','transportMax');
+    ffBind('ff-feesMin',     'feesMin');     ffBind('ff-feesMax',     'feesMax');
+    ffBind('ff-totalMin',    'totalMin');    ffBind('ff-totalMax',    'totalMax');
+    ffBind('ff-arbMin',      'arbMin');      ffBind('ff-arbMax',      'arbMax');
+
+    document.getElementById('ff-clear')?.addEventListener('click', () => {
+      this.finFilter = {
+        dateFrom:'', dateTo:'',
+        priceMin:'', priceMax:'', transportMin:'', transportMax:'',
+        feesMin:'', feesMax:'', totalMin:'', totalMax:'',
+        arbMin:'', arbMax:'',
+      };
+      this.renderRows();
+    });
     document.getElementById('p-nostock-btn')?.addEventListener('click', () => { this.filterNoStock = !this.filterNoStock; this.renderRows(); });
     document.getElementById('p-store').addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
     document.getElementById('p-source').addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
@@ -255,6 +410,14 @@ const Purchases = {
         this.renderRows();
       });
     });
+  },
+
+  _finFilterActive() {
+    const f = this.finFilter;
+    return !!(f.dateFrom || f.dateTo ||
+      f.priceMin || f.priceMax || f.transportMin || f.transportMax ||
+      f.feesMin  || f.feesMax  || f.totalMin     || f.totalMax     ||
+      f.arbMin   || f.arbMax);
   },
 
   getMonths() {
@@ -286,6 +449,25 @@ const Purchases = {
     );
     if (this.filterNoStock) data = data.filter(r => !r.stock || r.stock.trim() === '');
     if (this.filterMonth)   data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
+
+    // Financial filters
+    const ff = this.finFilter;
+    const inRange = (val, min, max) => {
+      const n = parseFloat(val) || 0;
+      if (min !== '' && n < parseFloat(min)) return false;
+      if (max !== '' && n > parseFloat(max)) return false;
+      return true;
+    };
+    if (ff.dateFrom)                 data = data.filter(r => (r.date||'') >= ff.dateFrom);
+    if (ff.dateTo)                   data = data.filter(r => (r.date||'') <= ff.dateTo);
+    if (ff.priceMin || ff.priceMax)  data = data.filter(r => inRange(r.purchasePrice, ff.priceMin, ff.priceMax));
+    if (ff.transportMin || ff.transportMax) data = data.filter(r => inRange(r.transport, ff.transportMin, ff.transportMax));
+    if (ff.feesMin || ff.feesMax)    data = data.filter(r => inRange(r.fees, ff.feesMin, ff.feesMax));
+    if (ff.totalMin || ff.totalMax)  data = data.filter(r => {
+      const total = (parseFloat(r.purchasePrice)||0) + (parseFloat(r.transport)||0) + (parseFloat(r.fees)||0);
+      return inRange(total, ff.totalMin, ff.totalMax);
+    });
+    if (ff.arbMin || ff.arbMax)      data = data.filter(r => inRange(r.arb?.amountReceived, ff.arbMin, ff.arbMax));
     if (this.filterStore)  data = data.filter(r => r.store  === this.filterStore);
     if (this.filterSource) data = data.filter(r => r.source === this.filterSource);
     if (this.filterBuyer)  data = data.filter(r => r.buyer  === this.filterBuyer);
@@ -340,10 +522,9 @@ const Purchases = {
       <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
       <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || '<span style="color:var(--amber);font-size:10px;font-weight:600">⚠ No stock #</span>'}</td>
       <td>
-        <div style="font-weight:500;font-size:13px">${r.make || ''} ${r.model || ''}</div>
-        <div style="font-size:11px;color:var(--text-3)">${r.year || ''}</div>
+        <div style="font-weight:500;font-size:13px">${r.year ? r.year+' ' : ''}${r.make || ''} ${r.model || ''}</div>
+        ${r.vin ? `<div style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;margin-top:2px">${r.vin}</div>` : ''}
       </td>
-      <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.vin || ''}">${r.vin ? r.vin.slice(0,8)+'…' : '—'}</td>
       <td><span class="src-badge ${srcClass}">${r.source || ''}</span></td>
       <td style="color:var(--text-2);font-size:12px">${r.store || '—'}</td>
       <td style="font-size:12px;color:var(--text-2)">${r.buyer || '—'}</td>
@@ -872,6 +1053,30 @@ const Purchases = {
       return;
     }
 
+    // Filter out rows whose VIN already exists in the database
+    const existingVins = new Set(
+      this.records
+        .filter(r => r.vin && r.vin.trim().length > 3)
+        .map(r => r.vin.trim().toUpperCase())
+    );
+
+    const dupes    = rows.filter(r => r.vin && existingVins.has(r.vin.trim().toUpperCase()));
+    const newRows  = rows.filter(r => !r.vin || !existingVins.has(r.vin.trim().toUpperCase()));
+
+    if (dupes.length > 0 && newRows.length === 0) {
+      Toast.show(`All ${dupes.length} rows are already in the database — nothing to import`, 'error');
+      return;
+    }
+
+    if (dupes.length > 0) {
+      const dupList = dupes.slice(0, 5).map(r => `  • ${r.vin} (${r.year} ${r.make} ${r.model})`).join('\n');
+      const more    = dupes.length > 5 ? `\n  … and ${dupes.length - 5} more` : '';
+      const go      = confirm(
+        `${dupes.length} duplicate VIN${dupes.length > 1 ? 's' : ''} will be skipped:\n${dupList}${more}\n\nImport the remaining ${newRows.length} record${newRows.length !== 1 ? 's' : ''}?`
+      );
+      if (!go) return;
+    }
+
     const btn = document.getElementById('btn-import-confirm');
     btn.textContent = 'Importing…';
     btn.disabled = true;
@@ -879,9 +1084,8 @@ const Purchases = {
     const col = collection(db, 'purchases');
     let success = 0, failed = 0;
 
-    // Batch in chunks of 10
-    for (let i = 0; i < rows.length; i += 10) {
-      const chunk = rows.slice(i, i + 10);
+    for (let i = 0; i < newRows.length; i += 10) {
+      const chunk = newRows.slice(i, i + 10);
       await Promise.all(chunk.map(async r => {
         try {
           await addDoc(col, {
@@ -907,7 +1111,8 @@ const Purchases = {
     }
 
     if (failed === 0) {
-      Toast.show(`Imported ${success} records`, 'success');
+      const skippedMsg = dupes.length > 0 ? ` (${dupes.length} duplicate${dupes.length > 1 ? 's' : ''} skipped)` : '';
+      Toast.show(`Imported ${success} record${success !== 1 ? 's' : ''}${skippedMsg}`, 'success');
       this.closeImportPanel();
     } else {
       Toast.show(`${success} imported, ${failed} failed`, 'error');
