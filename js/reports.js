@@ -184,22 +184,6 @@ const Reports = {
     const stores = this.storeFilter === 'all' ? STORES : [this.storeFilter];
     const onlineSales = this.getOnlineSales();
 
-    // Debug: show in output so we can see what data is found
-    const dbg = {
-      sessions: this.sessions.length,
-      sessionVehicles: this.sessions.reduce((a,s) => a + (s.vehicles||[]).length, 0),
-      onlineListings: this.sessions.reduce((a,s) => a + (s.vehicles||[]).filter(v=>v.onlineListing).length, 0),
-      soldListings: this.sessions.reduce((a,s) => a + (s.vehicles||[]).filter(v=>v.onlineListing?.status==='sold').length, 0),
-      onlineSalesFound: onlineSales.length,
-      dateRange: `${this.dateFrom} to ${this.dateTo}`,
-      salesInRange: onlineSales.filter(s => this.inRange(s.soldAt)).length,
-    };
-    console.log('Reports debug:', dbg);
-    document.getElementById('rep-output').innerHTML = `
-      <div style="background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 16px;font-family:var(--font-mono);font-size:11px;margin-bottom:16px;color:var(--text-2)">
-        <strong>Debug:</strong> ${JSON.stringify(dbg, null, 2).replace(/\n/g,'<br>').replace(/ /g,'&nbsp;')}
-      </div>`;
-
     const storeData = stores.map(store => this.buildStoreData(store, onlineSales));
     // Filter out stores with no data if showing all
     const active = this.storeFilter === 'all'
@@ -226,7 +210,7 @@ const Reports = {
 
     // Money OUT: purchases in range for this store
     const moneyOut = this.purchases
-      .filter(r => r.store === store && this.inRange(r.date))
+      .filter(r => (!store || normalizeStore(r.store) === normalizeStore(store)) && this.inRange(r.date))
       .map(r => {
         const price = parseFloat(r.purchasePrice) || 0;
         const trans = parseFloat(r.transport)     || 0;
@@ -249,8 +233,12 @@ const Reports = {
       .filter(r => r.lines.length > 0);
 
     // Money IN: online sales in range for this store
+    // Auction stores have 'Anderson ' prefix (e.g. 'Anderson Toyota') while purchases just use 'Toyota'
+    // Match if either equals the other, or one contains the other
+    const normalizeStore = s => (s || '').trim().toLowerCase().replace(/^anderson\s+/, '');
+    const storeMatch = s => !store || normalizeStore(s.store) === normalizeStore(store);
     const moneyIn = onlineSales
-      .filter(s => s.store === store && this.inRange(s.soldAt))
+      .filter(s => storeMatch(s) && this.inRange(s.soldAt))
       .map(s => ({
         date:    s.soldAt,
         dateFmt: fmt(s.soldAt),
@@ -262,7 +250,7 @@ const Reports = {
 
     // Money IN: unwound vehicles in range for this store
     const unwound = this.purchases
-      .filter(r => r.store === store && r.arb?.status === 'Unwound' && this.inRange(r.arb?.dateUnwound))
+      .filter(r => (!store || normalizeStore(r.store) === normalizeStore(store)) && r.arb?.status === 'Unwound' && this.inRange(r.arb?.dateUnwound))
       .map(r => ({
         date:    r.arb.dateUnwound,
         dateFmt: fmt(r.arb.dateUnwound),
@@ -275,7 +263,7 @@ const Reports = {
 
     // Pending arbs: open cases filed on or before dateTo
     const pending = this.purchases
-      .filter(r => r.store === store && r.arb &&
+      .filter(r => (!store || normalizeStore(r.store) === normalizeStore(store)) && r.arb &&
         ['Open'].includes(r.arb.status) &&
         (!this.dateTo || (r.arb.dateFiled || '') <= this.dateTo))
       .map(r => ({

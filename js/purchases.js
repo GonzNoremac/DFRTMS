@@ -964,6 +964,13 @@ const Purchases = {
         </div>
         <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text-1)">Strip "Anderson " from store names</div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:2px">One-time migration: removes "Anderson " prefix from all purchase store fields</div>
+          </div>
+          <button class="btn" id="fix-anderson-btn" style="white-space:nowrap">🔧 Strip Anderson prefix</button>
+        </div>
+        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
             <div style="font-size:13px;font-weight:500;color:var(--text-1)">Acknowledge pre-May 2025 financials</div>
             <div style="font-size:12px;color:var(--text-3);margin-top:2px">Stamps purchasePrice: 0 on all non-ICO records before May 2025 so they don't trigger the ⚠ No financials flag</div>
           </div>
@@ -993,6 +1000,8 @@ const Purchases = {
       .addEventListener('click', () => this.fixSerialDates());
     document.getElementById('fix-old-financials-btn')
       .addEventListener('click', () => this.fixOldFinancials());
+    document.getElementById('fix-anderson-btn')
+      .addEventListener('click', () => this.fixAndersonStores());
 
 
     document.getElementById('import-file')
@@ -1020,13 +1029,41 @@ const Purchases = {
     panel.innerHTML = '';
   },
 
+  async fixAndersonStores() {
+    const btn = document.getElementById('fix-anderson-btn');
+    const targets = this.records.filter(r =>
+      r.store && /^Anderson\s+/i.test(r.store)
+    );
+    if (!targets.length) {
+      Toast.show('No records with Anderson prefix — all clear', 'success');
+      return;
+    }
+    if (!confirm(`Found ${targets.length} record${targets.length>1?'s':''} with "Anderson " in the store name.\n\nStrip the prefix from all of them?`)) return;
+
+    btn.textContent = 'Migrating…'; btn.disabled = true;
+    let done = 0, failed = 0;
+    for (const r of targets) {
+      try {
+        const newStore = r.store.replace(/^Anderson\s+/i, '').trim();
+        await updateDoc(doc(db, 'purchases', r.id), { store: newStore });
+        r.store = newStore;
+        done++;
+      } catch(e) { console.error(e); failed++; }
+    }
+    btn.textContent = '🔧 Strip Anderson prefix'; btn.disabled = false;
+    if (failed === 0) Toast.show(`Fixed ${done} record${done>1?'s':''}`, 'success');
+    else Toast.show(`${done} fixed, ${failed} failed`, 'error');
+    this.renderRows();
+  },
+
   async fixOldFinancials() {
     const btn = document.getElementById('fix-old-financials-btn');
     const targets = this.records.filter(r =>
       r.source !== 'ICO' &&
       (!r.purchasePrice && r.purchasePrice !== 0) &&
-      (r.date || '') < '2025-05-01'
+      (!r.date || r.date < '2025-05-01')
     );
+    console.log('Migration scan: total records:', this.records.length, 'targets:', targets.length);
     if (!targets.length) {
       Toast.show('No records to migrate — all clear', 'success');
       return;

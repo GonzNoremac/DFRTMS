@@ -992,7 +992,7 @@ const Auction = {
 
         incoming.push({
           stock,
-          store:   iStore > -1 ? (row[iStore]||'').toString().trim() : '',
+          store:   iStore > -1 ? (row[iStore]||'').toString().trim().replace(/^Anderson\s+/i, '') : '',
           year:    iYear  > -1 ? parseInt(row[iYear])  || '' : '',
           make:    iMake  > -1 ? (row[iMake] ||'').toString().trim() : '',
           model:   iModel > -1 ? (row[iModel]||'').toString().trim() : '',
