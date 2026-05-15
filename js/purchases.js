@@ -51,15 +51,18 @@ const Purchases = {
 
       <div class="filter-bar">
         <input type="text" id="p-search" placeholder="Search stock #, VIN, make, model…" value="${this.searchQ}">
-        <select id="p-month">
-          <option value="">All months</option>
-          ${this.getMonths().map(m => `<option value="${m.val}" ${this.filterMonth===m.val?'selected':''}>${m.label}</option>`).join('')}
-        </select>
         <div class="p-filter-menu-wrap">
           <button class="btn-fin-filter${this._anyBasicFilter() ? ' active' : ''}" id="btn-filter-menu">
             ⊞ Filters${this._anyBasicFilter() ? ` <span class="fin-filter-dot"></span>` : ''}
           </button>
           <div id="p-filter-menu" class="p-filter-menu${this.filterMenuOpen ? '' : ' hidden'}">
+            <div class="p-fm-row">
+              <label class="p-fm-label">Month</label>
+              <select id="p-month" class="p-fm-select">
+                <option value="">All months</option>
+                ${this.getMonths().map(m => `<option value="${m.val}" ${this.filterMonth===m.val?'selected':''}>${m.label}</option>`).join('')}
+              </select>
+            </div>
             <div class="p-fm-row">
               <label class="p-fm-label">Store</label>
               <select id="p-store" class="p-fm-select">
@@ -81,19 +84,22 @@ const Purchases = {
                 ${BUYERS.map(b => `<option value="${b}" ${this.filterBuyer===b?'selected':''}>${b}</option>`).join('')}
               </select>
             </div>
-            <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px">
-              <label class="p-fm-check">
-                <input type="checkbox" id="p-nostock-chk" ${this.filterNoStock?'checked':''}>
-                <span>⚠ No stock #</span>
-              </label>
-              <label class="p-fm-check">
-                <input type="checkbox" id="p-openarb-chk" ${this.filterOpenArb?'checked':''}>
-                <span>⚖ Open arbitration</span>
-              </label>
-              <label class="p-fm-check">
-                <input type="checkbox" id="p-nofinance-chk" ${this.filterNoFinance?'checked':''}>
-                <span>⚠ No financial data</span>
-              </label>
+            <div style="border-top:1px solid var(--border);padding-top:8px">
+              <label class="p-fm-label" style="margin-bottom:6px;display:block">Flags</label>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <label class="p-fm-toggle ${this.filterNoStock?'active':''}">
+                  <input type="checkbox" id="p-nostock-chk" ${this.filterNoStock?'checked':''}>
+                  <span>⚠ No stock #</span>
+                </label>
+                <label class="p-fm-toggle ${this.filterOpenArb?'active':''}">
+                  <input type="checkbox" id="p-openarb-chk" ${this.filterOpenArb?'checked':''}>
+                  <span>⚖ Open arbitration</span>
+                </label>
+                <label class="p-fm-toggle ${this.filterNoFinance?'active':''}">
+                  <input type="checkbox" id="p-nofinance-chk" ${this.filterNoFinance?'checked':''}>
+                  <span>⚠ No financials</span>
+                </label>
+              </div>
             </div>
             <div style="border-top:1px solid var(--border);padding-top:8px;text-align:right">
               <button class="btn-ghost" id="p-clear-filters" style="font-size:11px">Clear all filters</button>
@@ -109,6 +115,7 @@ const Purchases = {
 
       ${this._anyBasicFilter() ? `
       <div class="p-active-chips">
+        ${this.filterMonth  ? `<span class="p-chip">Month: ${this.filterMonth} <span class="p-chip-x" data-clear="month">✕</span></span>`   : ''}
         ${this.filterStore  ? `<span class="p-chip">Store: ${this.filterStore}  <span class="p-chip-x" data-clear="store">✕</span></span>`  : ''}
         ${this.filterSource ? `<span class="p-chip">Source: ${this.filterSource}<span class="p-chip-x" data-clear="source">✕</span></span>` : ''}
         ${this.filterBuyer  ? `<span class="p-chip">Buyer: ${this.filterBuyer}  <span class="p-chip-x" data-clear="buyer">✕</span></span>`  : ''}
@@ -517,6 +524,7 @@ const Purchases = {
       const chip = e.target.closest('[data-clear]');
       if (chip) {
         const key = chip.dataset.clear;
+        if (key === 'month')  { this.filterMonth  = ''; }
         if (key === 'store')   { this.filterStore   = ''; }
         if (key === 'source')  { this.filterSource  = ''; }
         if (key === 'buyer')   { this.filterBuyer   = ''; }
@@ -532,11 +540,23 @@ const Purchases = {
     document.getElementById('p-store')?.addEventListener('change',  e => { this.filterStore   = e.target.value;    this.renderRows(); });
     document.getElementById('p-source')?.addEventListener('change', e => { this.filterSource  = e.target.value;    this.renderRows(); });
     document.getElementById('p-buyer')?.addEventListener('change',  e => { this.filterBuyer   = e.target.value;    this.savePrefs(); this.renderRows(); });
-    document.getElementById('p-nostock-chk')?.addEventListener('change', e => { this.filterNoStock = e.target.checked; this.renderRows(); });
-    document.getElementById('p-openarb-chk')?.addEventListener('change',   e => { this.filterOpenArb   = e.target.checked; this.renderRows(); });
-    document.getElementById('p-nofinance-chk')?.addEventListener('change', e => { this.filterNoFinance = e.target.checked; this.renderRows(); });
+    document.getElementById('p-nostock-chk')?.addEventListener('change', e => {
+      this.filterNoStock = e.target.checked;
+      e.target.closest('label')?.classList.toggle('active', e.target.checked);
+      this.renderRows();
+    });
+    document.getElementById('p-openarb-chk')?.addEventListener('change', e => {
+      this.filterOpenArb = e.target.checked;
+      e.target.closest('label')?.classList.toggle('active', e.target.checked);
+      this.renderRows();
+    });
+    document.getElementById('p-nofinance-chk')?.addEventListener('change', e => {
+      this.filterNoFinance = e.target.checked;
+      e.target.closest('label')?.classList.toggle('active', e.target.checked);
+      this.renderRows();
+    });
     document.getElementById('p-clear-filters')?.addEventListener('click', () => {
-      this.filterStore = ''; this.filterSource = ''; this.filterBuyer = '';
+      this.filterStore = ''; this.filterSource = ''; this.filterBuyer = ''; this.filterMonth = '';
       this.filterNoStock = false; this.filterOpenArb = false; this.filterNoFinance = false;
       this.filterMenuOpen = false;
       this.renderRows();
@@ -555,7 +575,7 @@ const Purchases = {
   },
 
   _anyBasicFilter() {
-    return !!(this.filterStore || this.filterSource || this.filterBuyer ||
+    return !!(this.filterStore || this.filterSource || this.filterBuyer || this.filterMonth ||
               this.filterNoStock || this.filterOpenArb || this.filterNoFinance);
   },
 

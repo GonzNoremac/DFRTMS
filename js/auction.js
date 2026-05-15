@@ -7,7 +7,7 @@ import { Toast } from './constants.js';
 
 const Auction = {
   vautoData: {}, vehicles: [], sessionId: null, sessionLabel: '',
-  filterStatus: 'all', filterStore: '', wsFilterStore: '', pastSessions: [],
+  filterStatus: 'all', filterStore: '', filterBidBy: '', wsFilterStore: '', pastSessions: [],
   wholesaleView: false, lastUpdated: null, selectedRows: new Set(),
 
   render(container) {
@@ -26,8 +26,9 @@ const Auction = {
       <div id="auc-workspace"><div style="padding:40px;text-align:center;color:var(--text-4)">Loading…</div></div>
     `;
 
-    // NOTE: do NOT reset sessionId here — it persists from previous navigation
-    // subscribeSessions will immediately fire and set correct state
+    // Reset _lastTs so the first snapshot always triggers a render
+    // sessionId persists so we know which session to load
+    this._lastTs      = null;
     this.vautoData    = {};
     this.selectedRows = new Set();
 
@@ -93,7 +94,7 @@ const Auction = {
       });
       this.sessionId = ref.id; this.sessionLabel = label;
       this.vehicles = []; this.vautoData = {};
-      this.filterStatus = 'all'; this.filterStore = ''; this.wsFilterStore = '';
+      this.filterStatus = 'all'; this.filterStore = ''; this.filterBidBy = ''; this.wsFilterStore = '';
       Toast.show('Session created', 'success');
       // subscribeSessions will pick up the new session automatically
     } catch(e) {
@@ -204,6 +205,11 @@ const Auction = {
           <option value="">All stores</option>
           ${this.getStores(this.vehicles).map(s => `<option value="${s}" ${this.filterStore===s?'selected':''}>${s}</option>`).join('')}
         </select>
+        ${[...new Set(this.vehicles.map(v => v.bidBy).filter(Boolean))].sort().length > 0 ? `
+        <select class="auc-store-select" onchange="Auction.filterBidBy=this.value;Auction.renderSession(document.getElementById('auc-workspace'))">
+          <option value="">All buyers</option>
+          ${[...new Set(this.vehicles.map(v => v.bidBy).filter(Boolean))].sort().map(b => `<option value="${b}" ${this.filterBidBy===b?'selected':''}>${b}</option>`).join('')}
+        </select>` : ''}
         <label class="auc-upload-btn" title="${hasVauto?'Vauto loaded':'Upload Vauto'}">
           📊 ${hasVauto?'Vauto ✓':'Vauto'}
           <input type="file" id="vauto-file" accept=".xlsx,.csv" style="display:none">
@@ -356,7 +362,8 @@ const Auction = {
                : f === 'unsold' ? v.filter(r => r.decision !== 'auto' && r.decision !== 'accepted' && r.decision !== 'nosale')
                : f === 'nosale' ? v.filter(r => r.decision === 'nosale')
                : v;
-    if (this.filterStore) result = result.filter(r => r.store === this.filterStore);
+    if (this.filterStore)  result = result.filter(r => r.store  === this.filterStore);
+    if (this.filterBidBy) result = result.filter(r => r.bidBy  === this.filterBidBy);
     return result;
   },
 
@@ -427,7 +434,7 @@ const Auction = {
       <div class="auc-table-wrap">
         <table class="auc-table">
           <thead><tr>
-            <th style='width:32px'></th><th>Stock #</th><th>Vehicle</th><th>Store</th><th>Reserve</th>
+            <th style='width:32px'></th><th>Stock # / Store</th><th>Vehicle / VIN / Color</th><th>Reserve</th>
             <th>Bid</th><th>Cost / Book / MMR</th>
             <th>Profit</th><th>Reserve</th><th>Status</th><th style='width:24px'></th><th style='width:24px'></th>
           </tr></thead>
@@ -486,10 +493,15 @@ const Auction = {
       <td style="padding:10px 8px 10px 12px">
         <input type="checkbox" class="auc-chk auc-row-chk" data-action="selectRow" data-stock="${r._idx}" ${this.selectedRows.has(r.stock)?'checked':''}>
       </td>
-      <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock}</td>
-      <td><div style="font-weight:500">${r.year} ${r.make} ${r.model}</div>
-          <div style="font-size:11px;color:var(--text-3)">${r.color||''}</div></td>
-      <td style="font-size:11px;color:var(--text-2)">${r.store||'—'}</td>
+      <td style="font-family:var(--font-mono);font-size:11px">
+        <div style="font-weight:600">${r.stock}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:2px">${r.store||'—'}</div>
+      </td>
+      <td>
+        <div style="font-weight:500">${r.year} ${r.make} ${r.model}</div>
+        ${r.vin ? `<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;margin-top:2px">${r.vin}</div>` : ''}
+        <div style="font-size:11px;color:var(--text-3);margin-top:1px">${r.color||''}</div>
+      </td>
       <td style="font-family:var(--font-mono);font-size:11px">${reserve > 0 ? fmt(reserve) : '—'}</td>
       <td>
         <div style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${bid>0?'var(--text-1)':'var(--text-3)'}">${bid>0?fmt(bid):'No bid'}</div>
@@ -713,7 +725,7 @@ const Auction = {
         </td>
         <td>
           ${winning
-            ? `<span style="color:var(--green);font-weight:600;font-size:12px">${winning.platform} — ${fmt(winning.val)}</span>`
+            ? `<span style="color:var(--green);font-weight:600;font-size:12px">${winning.platform}</span>`
             : `<span style="color:var(--text-4);font-size:11px">No bids yet</span>`}
         </td>
         <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${profitColor}">
