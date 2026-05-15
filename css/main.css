@@ -1528,3 +1528,66 @@ body {
   border-color: var(--amber-mid) !important;
   color: var(--amber) !important;
 }
+
+/* ---- Financial filter panel ---- */
+.btn-fin-filter {
+  background: var(--bg-surface); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 6px 12px; font-size: 12px; font-weight: 500;
+  color: var(--text-2); font-family: var(--font-sans); cursor: pointer;
+  transition: all 0.12s; display: inline-flex; align-items: center; gap: 5px;
+}
+.btn-fin-filter:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-med); }
+.btn-fin-filter.active { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent); }
+.fin-filter-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin-left: 2px;
+}
+#fin-filter-panel {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 16px 20px; margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.fin-filter-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+@media (max-width: 900px) { .fin-filter-grid { grid-template-columns: repeat(2,1fr); } }
+.fin-filter-group { display: flex; flex-direction: column; gap: 5px; }
+.fin-filter-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-3); }
+.fin-input {
+  background: var(--bg-raised); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 6px 8px; font-size: 12px;
+  font-family: var(--font-sans); color: var(--text-1); outline: none; width: 100%;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.fin-input::-webkit-outer-spin-button,
+.fin-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fin-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+/* ---- Add purchase modal ---- */
+.p-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.p-add-section-title {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--text-3);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.p-add-field { display: flex; flex-direction: column; gap: 5px; }
+.p-add-field label { font-size: 11px; font-weight: 500; color: var(--text-2); }
+.p-add-field input,
+.p-add-field select {
+  background: var(--bg-raised); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 8px 10px; font-size: 13px;
+  font-family: var(--font-sans); color: var(--text-1); outline: none;
+  width: 100%; transition: border-color 0.12s, box-shadow 0.12s;
+}
+.p-add-field input:focus,
+.p-add-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
+.p-add-field input[type="number"]::-webkit-outer-spin-button,
+.p-add-field input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
