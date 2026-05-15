@@ -28,6 +28,7 @@ const Dashboard = {
   _aucSession: null,
 
   async render(container) {
+    if (this._aucUnsubscribe) { this._aucUnsubscribe(); this._aucUnsubscribe = null; }
     this.initState();
     container.innerHTML = `
       <div class="page-header">
@@ -65,8 +66,10 @@ const Dashboard = {
   },
 
   subscribeAuctionStats() {
+    // Clean up any previous listener before creating a new one
+    if (this._aucUnsubscribe) { this._aucUnsubscribe(); this._aucUnsubscribe = null; }
     const q = collection(db, 'auction_sessions');
-    onSnapshot(q, snapshot => {
+    this._aucUnsubscribe = onSnapshot(q, snapshot => {
       const sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const active   = sessions.find(s => s.status !== 'archived');
       this._aucSession = active || null;

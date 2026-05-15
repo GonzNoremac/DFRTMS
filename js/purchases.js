@@ -216,24 +216,40 @@ const Purchases = {
   },
 
   subscribeFirestore() {
-    const q = query(collection(db, 'purchases'), orderBy('date', 'desc'));
-    this._unsubscribe = onSnapshot(q,
-      snapshot => {
-        this.records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        // Repopulate month dropdown now that records are loaded
-        const monthSel = document.getElementById('p-month');
-        if (monthSel) {
-          const current = this.filterMonth;
-          monthSel.innerHTML = '<option value="">All months</option>' +
-            this.getMonths().map(m => `<option value="${m.val}"${current===m.val?' selected':''}>${m.label}</option>`).join('');
+    // Try ordered query first; fall back to unordered if index missing
+    const tryQuery = (ordered) => {
+      const q = ordered
+        ? query(collection(db, 'purchases'), orderBy('date', 'desc'))
+        : collection(db, 'purchases');
+
+      this._unsubscribe = onSnapshot(q,
+        snapshot => {
+          this.records = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+          const monthSel = document.getElementById('p-month');
+          if (monthSel) {
+            const current = this.filterMonth;
+            monthSel.innerHTML = '<option value="">All months</option>' +
+              this.getMonths().map(m => `<option value="${m.val}"${current===m.val?' selected':''}>${m.label}</option>`).join('');
+          }
+          this.renderRows();
+        },
+        err => {
+          if (ordered && (err.code === 'failed-precondition' || err.message?.includes('index'))) {
+            // Index not created yet — fall back to unordered
+            console.warn('Purchases index missing, falling back to unordered query');
+            if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
+            tryQuery(false);
+          } else {
+            console.error('Firestore error:', err);
+            Toast.show('Could not load purchases', 'error');
+          }
         }
-        this.renderRows();
-      },
-      err => {
-        console.error('Firestore error:', err);
-        Toast.show('Could not load purchases', 'error');
-      }
-    );
+      );
+    };
+    tryQuery(true);
   },
 
   // ---- Quick add ---------------------------------------------

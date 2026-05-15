@@ -1015,61 +1015,49 @@ const Auction = {
   // ---- Firestore ---------------------------------------------
   async saveSession() {
     if (!this.sessionId) return;
-    const ts = new Date().toISOString();
-    this._saveTs = ts;  // track locally so onSnapshot can skip this update
+    this._rendering = true; // block snapshot re-renders while we save
     try {
       await updateDoc(doc(db, 'auction_sessions', this.sessionId), {
         vehicles:    this.vehicles,
         wholesale:   this.wholesale || [],
         lastUpdated: this.lastUpdated || null,
-        _saveTs:     ts,
       });
     } catch(e) { console.error('Save error:', e); }
+    // Brief delay then unblock — gives Firestore time to echo our own write
+    setTimeout(() => { this._rendering = false; }, 800);
   },
 
   subscribeSessions() {
     const q = collection(db, 'auction_sessions');
     this._unsubscribe = onSnapshot(q, snapshot => {
-      this.pastSessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (this._rendering) return; // prevent re-entrant renders
 
-      // Find the one active (non-archived) session
+      this.pastSessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const active = this.pastSessions.find(s => s.status !== 'archived');
 
       if (active) {
-        const idChanged = this.sessionId !== active.id;
+        const idChanged   = this.sessionId !== active.id;
+        const tsChanged   = (active.lastUpdated || active.createdAt || '') !== this._lastTs;
         this.sessionId    = active.id;
         this.sessionLabel = active.label;
         this.lastUpdated  = active.lastUpdated || null;
+        this._lastTs      = active.lastUpdated || active.createdAt || '';
 
-        // Only update vehicles/wholesale if data actually changed
-        // Compare by lastUpdated timestamp to avoid re-render loops
-        const newTs = active.lastUpdated || active.createdAt || '';
-        const saveTs = active._saveTs || '';
-        const ownSave = saveTs === this._saveTs && this._saveTs;
-        if (!ownSave && (idChanged || newTs !== this._lastTs)) {
-          this._lastTs  = newTs;
-          this.vehicles = active.vehicles  || [];
+        if (idChanged || tsChanged) {
+          this.vehicles  = active.vehicles  || [];
           this.wholesale = active.wholesale || [];
-          // Only render if workspace is showing (not during a form like new session)
           const ws = document.getElementById('auc-workspace');
           if (ws && !ws.querySelector('.auc-setup-card')) {
-            this.showWorkspace();
-          } else if (ws && idChanged) {
             this.showWorkspace();
           }
         }
       } else {
         if (this.sessionId !== null) {
-          this.sessionId    = null;
-          this.sessionLabel = '';
-          this.vehicles     = [];
-          this.wholesale    = [];
-          this.lastUpdated  = null;
-          this._lastTs      = null;
+          this.sessionId = null; this.sessionLabel = ''; this.vehicles = [];
+          this.wholesale = []; this.lastUpdated = null; this._lastTs = null;
           this.showWorkspace();
         }
       }
-
     }, err => {
       console.error('Listener error:', err);
       Toast.show('Could not load auction data', 'error');

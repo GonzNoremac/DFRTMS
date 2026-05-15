@@ -87,7 +87,7 @@ const App = {
 
   navigate(page) {
     // Clean up previous page's Firestore listener before navigating away
-    const cleanups = { purchases: Purchases, calendar: Calendar, auction: Auction };
+    const cleanups = { dashboard: Dashboard, purchases: Purchases, calendar: Calendar, auction: Auction };
     if (this.currentPage && cleanups[this.currentPage]) {
       const prev = cleanups[this.currentPage];
       if (prev._unsubscribe) { prev._unsubscribe(); prev._unsubscribe = null; }
