@@ -363,7 +363,10 @@ body {
 .arb-Open   { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-mid); }
 .arb-Won    { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-mid); }
 .arb-Lost   { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-mid);   }
-.arb-Closed { background: var(--bg-raised);color: var(--text-3);border: 1px solid var(--border);    }
+.arb-Closed  { background: var(--bg-raised);color: var(--text-3);border: 1px solid var(--border);    }
+.arb-Unwound { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+.p-row-unwound td { background: #faf5ff !important; }
+.p-row-unwound:hover td { background: #f3e8ff !important; }
 .detail-actions {
   grid-column: 1 / -1; display: flex; gap: 8px;
   padding-top: 12px; border-top: 1px solid var(--border);
@@ -1602,3 +1605,47 @@ body {
 }
 .p-add-field input[type="number"]::-webkit-outer-spin-button,
 .p-add-field input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- Purchases filter menu ---- */
+.p-filter-menu-wrap { position: relative; }
+.p-filter-menu {
+  position: absolute; top: calc(100% + 6px); left: 0;
+  background: var(--bg-surface); border: 1px solid var(--border-med);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  padding: 12px; min-width: 220px; z-index: 100;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.p-filter-menu.hidden { display: none; }
+.p-fm-row { display: flex; flex-direction: column; gap: 4px; }
+.p-fm-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-3); }
+.p-fm-select {
+  background: var(--bg-raised); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 6px 8px; font-size: 12px;
+  font-family: var(--font-sans); color: var(--text-1); outline: none;
+  transition: border-color 0.12s;
+}
+.p-fm-select:focus { border-color: var(--accent); }
+.p-fm-check {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  font-size: 12px; color: var(--text-2); font-family: var(--font-sans);
+}
+.p-fm-check input { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
+
+/* Active filter chips */
+.p-active-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+}
+.p-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--accent-light); color: var(--accent);
+  border: 1px solid var(--accent-mid); border-radius: 20px;
+  padding: 3px 10px; font-size: 11px; font-weight: 500;
+  font-family: var(--font-sans);
+}
+.p-chip-amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-mid); }
+.p-chip-x {
+  cursor: pointer; opacity: 0.6; font-size: 10px;
+  transition: opacity 0.1s;
+}
+.p-chip-x:hover { opacity: 1; }
