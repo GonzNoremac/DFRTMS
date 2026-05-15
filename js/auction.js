@@ -140,16 +140,16 @@ const Auction = {
       ${hasV ? `
       <div class="auc-stats" style="grid-template-columns:repeat(3,1fr)">
         <div class="auc-stat auc-stat-green">
-          <div class="auc-stat-val">${s.auto + s.accepted}</div>
-          <div class="auc-stat-label">Sold</div>
+          <div class="auc-stat-val">${s.sold}</div>
+          <div class="auc-stat-label">Sold${s.onlineSold > 0 ? ` <span style="font-size:10px;font-weight:400;color:var(--green)">(${s.auctionSold} auction · ${s.onlineSold} online)</span>` : ''}</div>
         </div>
         <div class="auc-stat">
-          <div class="auc-stat-val">${s.pending + s.denied + s.nosale}</div>
+          <div class="auc-stat-val">${s.unsold}</div>
           <div class="auc-stat-label">Unsold</div>
         </div>
         <div class="auc-stat ${s.soldProfit === null ? '' : s.soldProfit >= 0 ? 'auc-stat-green' : 'auc-stat-red'}">
           <div class="auc-stat-val" style="font-size:20px">${s.soldProfit !== null ? (s.soldProfit>=0?'+$':'-$')+Math.abs(s.soldProfit).toLocaleString() : '—'}</div>
-          <div class="auc-stat-label">Profit on sold</div>
+          <div class="auc-stat-label">Combined profit</div>
         </div>
       </div>
 
@@ -248,12 +248,13 @@ const Auction = {
             book:          v.book  || null,
             mmr:           v.mmr   || null,
             auctionHighBid: v.maxBid || null,
-            openlane:  null,
-            acv:       null,
-            manheim:   null,
-            status:    'active',
-            soldOn:    null,
-            soldPrice: null,
+            openlane:      null,
+            acv:           null,
+            manheim:       null,
+            onlineReserve: null,
+            status:        'active',
+            soldOn:        null,
+            soldPrice:     null,
           };
         }
       });
@@ -351,25 +352,40 @@ const Auction = {
 
   calcStats() {
     const v = this.vehicles;
-    // Profit on sold vehicles (auto + accepted)
-    const sold   = v.filter(r => r.decision === 'auto' || r.decision === 'accepted');
-    const unsold = v.filter(r => r.decision !== 'auto' && r.decision !== 'accepted');
-    let soldProfit = null, soldCount = 0;
-    sold.forEach(r => {
-      const bid = parseFloat(r.maxBid) || 0;
-      const cost = parseFloat(r.cost)  || 0;
-      if (bid > 0 && cost > 0) { soldProfit = (soldProfit || 0) + (bid - cost); soldCount++; }
+
+    // Auction sold
+    const auctionSold   = v.filter(r => r.decision === 'auto' || r.decision === 'accepted');
+    const auctionUnsold = v.filter(r => r.decision !== 'auto' && r.decision !== 'accepted');
+
+    // Online sold
+    const onlineSold = v.filter(r => r.goOnline && r.onlineListing?.status === 'sold');
+
+    // Combined sold count (avoid double-counting: auction-sold can't also be online-sold)
+    const totalSold   = auctionSold.length + onlineSold.length;
+    const totalUnsold = v.length - totalSold;
+
+    // Profit: auction sold
+    let soldProfit = null;
+    auctionSold.forEach(r => {
+      const bid  = parseFloat(r.maxBid) || 0;
+      const cost = parseFloat(r.cost)   || 0;
+      if (bid > 0 && cost > 0) soldProfit = (soldProfit || 0) + (bid - cost);
     });
+
+    // Profit: online sold
+    onlineSold.forEach(r => {
+      const price = parseFloat(r.onlineListing.soldPrice) || 0;
+      const cost  = parseFloat(r.onlineListing.cost)      || 0;
+      if (price > 0 && cost > 0) soldProfit = (soldProfit || 0) + (price - cost);
+    });
+
     return {
-      total:    v.length,
-      auto:     v.filter(r => r.decision === 'auto').length,
-      pending:  v.filter(r => r.decision === 'pending').length,
-      accepted: v.filter(r => r.decision === 'accepted').length,
-      denied:   v.filter(r => r.decision === 'denied').length,
-      nosale:   v.filter(r => r.decision === 'nosale').length,
-      soldProfit, soldCount,
-      soldVehicles: sold,
-      unsoldVehicles: unsold,
+      total:      v.length,
+      sold:       totalSold,
+      unsold:     totalUnsold,
+      soldProfit,
+      auctionSold: auctionSold.length,
+      onlineSold:  onlineSold.length,
     };
   },
 
@@ -378,14 +394,19 @@ const Auction = {
     const stores = [...new Set(this.vehicles.map(v => v.store).filter(Boolean))].sort();
     return stores.map(store => {
       const sv = this.vehicles.filter(v => v.store === store);
-      const sold   = sv.filter(v => v.decision === 'auto' || v.decision === 'accepted');
-      const unsold = sv.filter(v => v.decision !== 'auto' && v.decision !== 'accepted');
+      const auctionSold = sv.filter(v => v.decision === 'auto' || v.decision === 'accepted');
+      const onlineSold  = sv.filter(v => v.goOnline && v.onlineListing?.status === 'sold');
+      const totalSold   = auctionSold.length + onlineSold.length;
       let profit = null;
-      sold.forEach(v => {
+      auctionSold.forEach(v => {
         const bid = parseFloat(v.maxBid)||0, cost = parseFloat(v.cost)||0;
         if (bid > 0 && cost > 0) profit = (profit||0) + (bid - cost);
       });
-      return { store, total: sv.length, sold: sold.length, unsold: unsold.length, profit };
+      onlineSold.forEach(v => {
+        const price = parseFloat(v.onlineListing.soldPrice)||0, cost = parseFloat(v.onlineListing.cost)||0;
+        if (price > 0 && cost > 0) profit = (profit||0) + (price - cost);
+      });
+      return { store, total: sv.length, sold: totalSold, unsold: sv.length - totalSold, profit };
     });
   },
 
@@ -501,7 +522,7 @@ const Auction = {
         color: v.color||'', vin: v.vin||'', store: v.store||'',
         cost: v.cost||null, book: v.book||null, mmr: v.mmr||null,
         auctionHighBid: v.maxBid||null,
-        openlane: null, acv: null, manheim: null,
+        openlane: null, acv: null, manheim: null, onlineReserve: null,
         status: 'active', soldOn: null, soldPrice: null,
       };
     } else if (!checked) {
@@ -614,7 +635,8 @@ const Auction = {
         return `<tr class="auc-row" style="opacity:0.65;border-left:3px solid var(--green)">
           <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${v.stock}</td>
           <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
-              <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
+              <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div>
+              ${ol.vin ? `<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;margin-top:2px">${ol.vin}</div>` : ''}</td>
           <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
           <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
             <span style="color:var(--text-2);font-weight:600">${fmt(ol.cost)}</span><br>
@@ -622,7 +644,7 @@ const Auction = {
             <span style="color:var(--text-3);font-size:10px">${fmt(ol.mmr)}</span>
           </td>
           <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-2)">${ol.auctionHighBid?fmt(ol.auctionHighBid):'—'}</td>
-          <td style="font-size:11px;color:var(--text-3)">—</td>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--accent)">${ol.onlineReserve?fmt(ol.onlineReserve):'—'}</td>
           <td style="font-weight:600;color:var(--green);font-size:12px">Sold — ${ol.soldOn}</td>
           <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--green)">${fmt(ol.soldPrice)}</td>
           <td><span class="auc-link" style="color:var(--amber)" data-action="unsell" data-stock="${v._wsIdx}">[Mark unsold]</span></td>
@@ -632,7 +654,8 @@ const Auction = {
       return `<tr class="auc-row">
         <td style="font-family:var(--font-mono);font-size:11px;font-weight:600">${v.stock}</td>
         <td><div style="font-weight:500">${v.year} ${v.make} ${v.model}</div>
-            <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div></td>
+            <div style="font-size:11px;color:var(--text-3)">${v.color||''}</div>
+            ${ol.vin ? `<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;margin-top:2px">${ol.vin}</div>` : ''}</td>
         <td style="font-size:11px;color:var(--text-2)">${v.store||'—'}</td>
         <td style="font-family:var(--font-mono);font-size:11px;line-height:1.7">
           <span style="color:var(--text-2);font-weight:600">${fmt(ol.cost)}</span><br>
@@ -644,6 +667,13 @@ const Auction = {
         </td>
         <td>
           <div style="display:flex;flex-direction:column;gap:3px">
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;padding-bottom:4px;border-bottom:1px solid var(--border)">
+              <span style="font-size:9px;font-weight:600;color:var(--accent);width:54px;flex-shrink:0">RESERVE</span>
+              <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
+                value="${ol.onlineReserve||''}"
+                style="-moz-appearance:textfield;border-color:var(--accent-mid);color:var(--accent)"
+                data-bid-stock="${v._wsIdx}" data-bid-platform="onlineReserve">
+            </div>
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:9px;font-weight:600;color:var(--text-3);width:54px;flex-shrink:0">OPENLANE</span>
               <input type="number" class="ws-bid-input ws-bid-sm" placeholder="—"
@@ -700,7 +730,7 @@ const Auction = {
             <th>Stock #</th><th>Vehicle</th><th>Store</th>
             <th>Cost / Book / MMR</th>
             <th>Auction high bid</th>
-            <th>Platform bids</th>
+            <th>Reserve / Bids</th>
             <th>Winning bid</th><th>Profit</th><th>Action</th>
           </tr></thead>
           <tbody>

@@ -5,7 +5,7 @@
 //  Document fields: forecast, stockPct, currentInv, tracking
 // ============================================================
 
-import { db, doc, getDoc, setDoc } from './firebase.js';
+import { db, doc, getDoc, setDoc, collection, onSnapshot } from './firebase.js';
 import { STORES, Toast } from './constants.js';
 
 // Debounce timer per store so we don't write on every keystroke
@@ -53,10 +53,76 @@ const Dashboard = {
           <tfoot>${this.trackingRowHTML()}</tfoot>
         </table>
       </div>
+      <div id="dash-auction-stats"></div>
     `;
 
     this.attachListeners();
     await this.loadFromFirestore();
+    this.subscribeAuctionStats();
+  },
+
+  subscribeAuctionStats() {
+    const q = collection(db, 'auction_sessions');
+    onSnapshot(q, snapshot => {
+      const sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const active   = sessions.find(s => s.status !== 'archived');
+      this.renderAuctionStats(active || null);
+    }, err => {
+      console.error('Auction stats error:', err);
+    });
+  },
+
+  renderAuctionStats(session) {
+    const el = document.getElementById('dash-auction-stats');
+    if (!el) return;
+
+    if (!session || !session.vehicles?.length) {
+      el.innerHTML = `
+        <div class="inv-section-title" style="margin-top:24px">Current auction</div>
+        <div style="padding:20px;text-align:center;color:var(--text-4);font-size:13px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-lg)">
+          No active auction session
+        </div>`;
+      return;
+    }
+
+    const v          = session.vehicles;
+    const fmt        = n => n !== null && n !== undefined ? '$' + Number(n).toLocaleString() : '—';
+    const sold       = v.filter(r => r.decision === 'auto' || r.decision === 'accepted');
+    const onlineSold = v.filter(r => r.goOnline && r.onlineListing?.status === 'sold');
+    const pending    = v.filter(r => r.decision === 'pending');
+    const denied     = v.filter(r => r.decision === 'denied');
+    const nosale     = v.filter(r => r.decision === 'nosale');
+    const online     = v.filter(r => r.goOnline);
+
+    let profit = null;
+    sold.forEach(r => {
+      const bid = parseFloat(r.maxBid)||0, cost = parseFloat(r.cost)||0;
+      if (bid > 0 && cost > 0) profit = (profit||0) + (bid - cost);
+    });
+    onlineSold.forEach(r => {
+      const price = parseFloat(r.onlineListing?.soldPrice)||0, cost = parseFloat(r.onlineListing?.cost)||0;
+      if (price > 0 && cost > 0) profit = (profit||0) + (price - cost);
+    });
+
+    const updated = session.lastUpdated ? `· Updated ${session.lastUpdated}` : '';
+
+    el.innerHTML = `
+      <div class="inv-section-title" style="margin-top:24px">
+        Current auction
+        <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:8px">${session.label || ''} ${updated}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+        <div class="auc-stat"><div class="auc-stat-val">${v.length}</div><div class="auc-stat-label">Total</div></div>
+        <div class="auc-stat auc-stat-green"><div class="auc-stat-val">${sold.length + onlineSold.length}</div><div class="auc-stat-label">Sold</div></div>
+        <div class="auc-stat auc-stat-amber"><div class="auc-stat-val">${pending.length}</div><div class="auc-stat-label">Pending</div></div>
+        <div class="auc-stat"><div class="auc-stat-val">${denied.length}</div><div class="auc-stat-label">Denied</div></div>
+        <div class="auc-stat"><div class="auc-stat-val">${online.length}</div><div class="auc-stat-label">Online</div></div>
+        <div class="auc-stat ${profit===null?'':profit>=0?'auc-stat-green':'auc-stat-red'}" style="grid-column:span 1">
+          <div class="auc-stat-val" style="font-size:18px">${profit!==null?(profit>=0?'+$':'-$')+Math.abs(profit).toLocaleString():'—'}</div>
+          <div class="auc-stat-label">Profit</div>
+        </div>
+      </div>
+    `;
   },
 
   // ---- Firestore load ----------------------------------------

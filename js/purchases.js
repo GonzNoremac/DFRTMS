@@ -19,6 +19,7 @@ const Purchases = {
   filterSource: '',
   filterBuyer:  '',
   filterMonth:  '',
+  filterNoStock: false,
   searchQ:      '',
 
   // ---- Render ------------------------------------------------
@@ -138,6 +139,13 @@ const Purchases = {
     this._unsubscribe = onSnapshot(q,
       snapshot => {
         this.records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Repopulate month dropdown now that records are loaded
+        const monthSel = document.getElementById('p-month');
+        if (monthSel) {
+          const current = this.filterMonth;
+          monthSel.innerHTML = '<option value="">All months</option>' +
+            this.getMonths().map(m => `<option value="${m.val}"${current===m.val?' selected':''}>${m.label}</option>`).join('');
+        }
         this.renderRows();
       },
       err => {
@@ -153,7 +161,6 @@ const Purchases = {
     const store = document.getElementById('qa-store').value;
     const buyer = document.getElementById('qa-buyer').value;
 
-    if (!stock) { Toast.show('Stock # is required', 'error'); document.getElementById('qa-stock').focus(); return; }
     if (!store) { Toast.show('Select a store', 'error');      document.getElementById('qa-store').focus(); return; }
     if (!buyer) { Toast.show('Select a buyer', 'error');      document.getElementById('qa-buyer').focus(); return; }
 
@@ -233,6 +240,7 @@ const Purchases = {
   bindFilters() {
     document.getElementById('p-search').addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
     document.getElementById('p-month').addEventListener('change',  e => { this.filterMonth  = e.target.value; this.renderRows(); });
+    document.getElementById('p-nostock-btn')?.addEventListener('click', () => { this.filterNoStock = !this.filterNoStock; this.renderRows(); });
     document.getElementById('p-store').addEventListener('change',  e => { this.filterStore  = e.target.value; this.renderRows(); });
     document.getElementById('p-source').addEventListener('change', e => { this.filterSource = e.target.value; this.renderRows(); });
     document.getElementById('p-buyer').addEventListener('change',  e => { this.filterBuyer  = e.target.value; this.renderRows(); });
@@ -276,7 +284,8 @@ const Purchases = {
       (r.make   || '').toLowerCase().includes(q) ||
       (r.model  || '').toLowerCase().includes(q)
     );
-    if (this.filterMonth)  data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
+    if (this.filterNoStock) data = data.filter(r => !r.stock || r.stock.trim() === '');
+    if (this.filterMonth)   data = data.filter(r => (r.date||'').startsWith(this.filterMonth));
     if (this.filterStore)  data = data.filter(r => r.store  === this.filterStore);
     if (this.filterSource) data = data.filter(r => r.source === this.filterSource);
     if (this.filterBuyer)  data = data.filter(r => r.buyer  === this.filterBuyer);
@@ -325,10 +334,11 @@ const Purchases = {
     const isExpanded = this.expandedId === r.id;
     const hasArb     = r.arb !== null && r.arb !== undefined;
     const srcClass   = 'src-' + (r.source || '').replace(/\s/g, '');
-    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}" data-id="${r.id}">
+    const noStock = !r.stock || r.stock.trim() === '';
+    return `<tr class="p-row${isExpanded ? ' expanded' : ''}${hasArb ? ' has-arb' : ''}${noStock ? ' p-row-nostock' : ''}" data-id="${r.id}">
       <td style="padding:10px 10px 10px 14px"><span class="row-chevron">▶</span></td>
       <td style="font-size:12px;color:var(--text-2);white-space:nowrap">${r.date || '—'}</td>
-      <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || ''}</td>
+      <td class="td-stock" style="font-family:var(--font-mono);font-size:11px;font-weight:600">${r.stock || '<span style="color:var(--amber);font-size:10px;font-weight:600">⚠ No stock #</span>'}</td>
       <td>
         <div style="font-weight:500;font-size:13px">${r.make || ''} ${r.model || ''}</div>
         <div style="font-size:11px;color:var(--text-3)">${r.year || ''}</div>
