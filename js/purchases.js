@@ -110,6 +110,7 @@ const Purchases = {
           ⊞ Financials${this._finFilterActive() ? ' <span class="fin-filter-dot"></span>' : ''}
         </button>
         <span class="record-count" id="p-count"></span>
+        <button class="btn-import" id="btn-export">↓ Export CSV</button>
         <button class="btn-import" id="btn-import">⬆ Import CSV</button>
       </div>
 
@@ -250,6 +251,68 @@ const Purchases = {
         filterMonth: this.filterMonth,
       }, { merge: true });
     } catch(e) { console.error('Save prefs error:', e); }
+  },
+
+  exportCSV() {
+    const data = this.getFiltered();
+    if (!data.length) { Toast.show('No records to export', 'error'); return; }
+
+    const esc = v => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? '"' + s.replace(/"/g, '""') + '"'
+        : s;
+    };
+
+    const headers = [
+      'Date', 'Stock #', 'Year', 'Make', 'Model', 'VIN',
+      'Source', 'Store', 'Buyer',
+      'Purchase Price', 'Transport', 'Fees', 'Total Cost',
+      'Notes',
+      'Arb Status', 'Arb Issue', 'Arb Requested', 'Arb Received',
+      'Arb Date Filed', 'Arb Date Unwound', 'Arb Resolution'
+    ];
+
+    const rows = data.map(r => {
+      const total = (parseFloat(r.purchasePrice)||0) +
+                    (parseFloat(r.transport)||0) +
+                    (parseFloat(r.fees)||0);
+      return [
+        r.date          || '',
+        r.stock         || '',
+        r.year          || '',
+        r.make          || '',
+        r.model         || '',
+        r.vin           || '',
+        r.source        || '',
+        r.store         || '',
+        r.buyer         || '',
+        r.purchasePrice ?? '',
+        r.transport     ?? '',
+        r.fees          ?? '',
+        total > 0 ? total : '',
+        r.notes         || '',
+        r.arb?.status        || '',
+        r.arb?.issue         || '',
+        r.arb?.amount        ?? '',
+        r.arb?.amountReceived ?? '',
+        r.arb?.dateFiled     || '',
+        r.arb?.dateUnwound   || '',
+        r.arb?.resolution    || '',
+      ].map(esc).join(',');
+    });
+
+    const csv  = [headers.map(esc).join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10);
+    a.href     = url;
+    a.download = `purchases_${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.show(`Exported ${data.length} record${data.length > 1 ? 's' : ''}`, 'success');
   },
 
   subscribeFirestore() {
@@ -458,6 +521,7 @@ const Purchases = {
   bindFilters() {
     document.getElementById('p-search')?.addEventListener('input',  e => { this.searchQ     = e.target.value; this.renderRows(); });
     document.getElementById('p-month')?.addEventListener('change',  e => { this.filterMonth  = e.target.value; this.savePrefs(); this.renderRows(); });
+    document.getElementById('btn-export')?.addEventListener('click', () => this.exportCSV());
 
     // Financial filter toggle — use document-level delegation so it survives re-renders
     this._finBtnHandler = (e) => {
